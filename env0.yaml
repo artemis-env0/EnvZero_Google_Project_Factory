@@ -1,0 +1,16 @@
+version: 1
+# Tell env0 to use OpenTofu
+terraformVersion: "opentofu_v1.7.0"
+
+# Optional: helpful environment outputs surfaced in env0 UI later
+outputs:
+  - created_project_id
+  - created_project_number
+  - whoami_email
+  - bucket_name
+
+# (Optional) approve applies automatically in non-prod
+autoApprove: true
+
+# Recommended: fail fast on missing variables
+failOnMissingVariables: true
