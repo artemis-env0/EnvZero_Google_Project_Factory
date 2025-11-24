@@ -11,7 +11,7 @@ resource "random_id" "suffix" {
   byte_length = 2
 }
 
-# Stage 3 > Project Factory: create a NEW project ----
+# Stage 3 > Project Factory: create a NEW project
 module "project_factory" {
   source  = "terraform-google-modules/project-factory/google"
   version = "~> 18.0"
@@ -42,7 +42,7 @@ output "created_project_number" {
   description = "Number of the newly created project."
 }
 
-# Stage 4 > Single resource in the NEW project: one GCS bucket ----
+# Stage 4 > Single resource in the NEW project: one GCS bucket
 # we set project at the resource level (can't use outputs inside provider blocks)
 resource "google_storage_bucket" "one_bucket" {
   name                        = "${module.project_factory.project_id}-bkt-${random_id.suffix.hex}"
