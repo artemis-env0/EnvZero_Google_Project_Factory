@@ -13,8 +13,7 @@ terraform {
   }
 }
 
-# This provider is only used for auth & lookups.
-# We point it at a *bootstrap* project you already have.
+# Provider uses the existing bootstrap project (not the new one)
 provider "google" {
   project = var.bootstrap_project_id
   region  = var.region
