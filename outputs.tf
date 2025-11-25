@@ -1,1 +1,1 @@
-# (empty on purpose because main.tf defines outputs) - AGA WAS HERE
+# (left empty intentionally — outputs are defined in main.tf) - AGA WAS HERE
