@@ -1,16 +1,47 @@
-version: 1
-# Tell env0 to use OpenTofu
-terraformVersion: "opentofu_v1.7.0"
+version: 2
 
-# Environment Var outputs surfaced in env0 UI later
-outputs:
-  - created_project_id
-  - created_project_number
-  - whoami_email
-  - bucket_name
+deploy:
+  steps:
+    setup:
+      - name: Print versions
+        run: |
+          echo "OpenTofu version:"
+          tofu version || true
+          echo "ENV0_OPENTOFU_VERSION=${ENV0_OPENTOFU_VERSION:-unset}"
 
-# (Optional) approve applies automatically in non-prod
-autoApprove: true
+      - name: Validate required inputs
+        run: |
+          # Add/remove as needed to match your .tf vars
+          REQUIRED=(
+            TF_VAR_bootstrap_project_id
+            TF_VAR_billing_account
+          )
+          # Exactly one of org_id or folder_id must be set
+          ONE_OF=( TF_VAR_org_id TF_VAR_folder_id )
 
-# Recommended: fail fast on missing variables
-failOnMissingVariables: true
+          missing=0
+          for v in "${REQUIRED[@]}"; do
+            if [ -z "${!v}" ]; then echo "Missing required variable: $v"; missing=1; fi
+          done
+
+          have_one_of=0
+          for v in "${ONE_OF[@]}"; do
+            if [ -n "${!v}" ]; then have_one_of=$((have_one_of+1)); fi
+          done
+          if [ "$have_one_of" -ne 1 ]; then
+            echo "Exactly one of TF_VAR_org_id or TF_VAR_folder_id must be set (not both, not none)."
+            missing=1
+          fi
+
+          if [ "$missing" -ne 0 ]; then
+            echo "Aborting: variables missing/misconfigured."
+            exit 1
+          fi
+    plan: []
+    apply: []
+    destroy: []
+
+# Notes:
+# - Pin OpenTofu via env var in the Environment: ENV0_OPENTOFU_VERSION=1.7.0
+# - Terraform/OpenTofu outputs are automatically detected by env0 (no YAML needed).
+# - Keep this file at repo root (or your template folder) alongside your .tf files.
