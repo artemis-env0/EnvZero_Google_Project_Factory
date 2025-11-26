@@ -24,6 +24,7 @@ resource "google_project_service" "bootstrap_services" {
   disable_on_destroy = false
 }
 */
+
 # Create a NEW project via Project Factory v18
 
 module "project_factory" {
