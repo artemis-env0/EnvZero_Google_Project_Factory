@@ -1,0 +1,15 @@
+# local/tofu/terraform stuff
+.terraform/
+.terraform.lock.hcl
+*.tfstate
+*.tfstate.*
+crash.log
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+
+# keys (do not commit service account keys)
+*.json
+*.pem
+*.p12
