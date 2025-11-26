@@ -1,16 +1,41 @@
-version: 1
-# Tell env0 to use OpenTofu
-terraformVersion: "opentofu_v1.7.0"
+version: 2
+shell: bash
 
-# Environment Var outputs surfaced in env0 UI later
-outputs:
-  - created_project_id
-  - created_project_number
-  - whoami_email
-  - bucket_name
+deploy:
+  steps:
+    setupVariables:
+      after:
+        - name: Print tool versions
+          run: |
+            echo "OpenTofu:" && tofu version || true
+            echo "jq:" && jq --version || true
+            echo "ENV0_OPENTOFU_VERSION=${ENV0_OPENTOFU_VERSION:-unset}"
 
-# (Optional) approve applies automatically in non-prod
-autoApprove: true
+        - name: Validate required inputs
+          run: |
+            REQUIRED=( TF_VAR_bootstrap_project_id TF_VAR_billing_account )
+            ONE_OF=( TF_VAR_org_id TF_VAR_folder_id )
+            missing=0
 
-# Recommended: fail fast on missing variables
-failOnMissingVariables: true
+            for v in "${REQUIRED[@]}"; do
+              if [ -z "${!v}" ]; then echo "Missing required variable: $v" 1>&2; missing=1; fi
+            done
+
+            count_one_of=0
+            for v in "${ONE_OF[@]}"; do
+              [ -n "${!v}" ] && count_one_of=$((count_one_of+1))
+            done
+            if [ "$count_one_of" -ne 1 ]; then
+              echo "Exactly one of TF_VAR_org_id or TF_VAR_folder_id must be set (not both / not none)." 1>&2
+              missing=1
+            fi
+
+            if [ "$missing" -ne 0 ]; then
+              exit 1
+            fi
+
+    terraformApply:
+      after:
+        - name: Print outputs (JSON)
+          run: |
+            tofu output -json || true
