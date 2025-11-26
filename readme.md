@@ -12,7 +12,7 @@ This repository demonstrates a minimal, **env0-driven** workflow that:
 
 ---
 
-## Prerequisites
+### Prerequisites
 
 - A **bootstrap GCP project** for provider auth/lookups (e.g., `env0-bootstrap-...`)
 - A **service account (SA)** in the bootstrap project with a **JSON key** (store in env0 as `GOOGLE_CREDENTIALS`)
@@ -31,7 +31,7 @@ This repository demonstrates a minimal, **env0-driven** workflow that:
 
 ---
 
-## What this deploys
+### What this deploys
 
 - **New GCP project** via `terraform-google-modules/project-factory/google` (v18)
 - **One GCS bucket** in that new project
@@ -40,7 +40,7 @@ This repository demonstrates a minimal, **env0-driven** workflow that:
 
 ---
 
-## Quick Start (env0)
+### Quick Start (env0)
 
 1. **Connect this repo** to an env0 **Project** → create a new **Environment**.
 2. In env0 **Environment Variables**:
@@ -66,9 +66,9 @@ This repository demonstrates a minimal, **env0-driven** workflow that:
 
 ---
 
-## Files to Copy
+### Files to Copy
 
-### `env0.yaml`
+#### `env0.yaml`
 ```yaml
 version: 2
 shell: bash
@@ -141,7 +141,7 @@ deploy:
 ```
 ----
 
-### 'Providers.tf'
+#### 'Providers.tf'
 ````hcl
 terraform {
   required_version = ">= 1.3.0"
@@ -166,7 +166,7 @@ provider "google" {
 ````
 ----
 
-### 'Variables.tf'
+#### 'Variables.tf'
 ````hcl
 
 # Provider / bootstrap
@@ -273,11 +273,11 @@ variable "disk_size_gb" {
 ````
 ----
 
-### 'Main.tf'
+#### 'Main.tf'
 ````hcl
-###################
+
 # Sanity: who am I?
-###################
+
 
 data "google_client_openid_userinfo" "me" {}
 
@@ -286,9 +286,9 @@ output "whoami_email" {
   description = "Authenticated principal email from GOOGLE_CREDENTIALS."
 }
 
-###################
+
 # Create a NEW project via Project Factory v18
-###################
+
 
 module "project_factory" {
   source  = "terraform-google-modules/project-factory/google"
@@ -319,9 +319,9 @@ output "created_project_number" {
   description = "Number of the newly created project."
 }
 
-###################
+
 # Optional: ensure env0 SA can manage the new project
-###################
+
 
 resource "google_project_iam_member" "grant_editor_to_caller" {
   count   = var.caller_sa_email == "" ? 0 : 1
@@ -330,9 +330,9 @@ resource "google_project_iam_member" "grant_editor_to_caller" {
   member  = "serviceAccount:${var.caller_sa_email}"
 }
 
-###################
+
 # Test Resource A: One GCS bucket in NEW project
-###################
+
 
 resource "random_id" "suffix" {
   byte_length = 2
@@ -361,9 +361,9 @@ output "bucket_url" {
   description = "gs:// URL of the bucket."
 }
 
-###################
+
 # Test Resource B (optional): Persistent Disk
-###################
+
 
 resource "google_compute_disk" "test_pd" {
   count   = var.enable_persistent_disk ? 1 : 0
@@ -381,14 +381,14 @@ output "test_pd_self_link" {
 ````
 ----
 
-### 'Outputs.tf'
+#### 'Outputs.tf'
 ````hcl
 # (Left intentionally empty : outputs are defined in main.tf) > artem@env0 was here
 
 ````
 ----
 
-### '.gitignore'
+#### '.gitignore'
 ````gitignore
 # OpenTofu/Terraform local files
 .terraform/
@@ -408,8 +408,8 @@ override.tf.json
 ````
 ----
 
-## Debugging 
-### Running this locally
+### Debugging 
+#### Running this locally
 
 ````bash
 # 1) Set credentials (same SA used in env0)
@@ -435,7 +435,7 @@ This document summarizes the key **outputs**, **common errors & fixes**, and a f
 
 ---
 
-## Outputs
+### Outputs
 
 - **whoami_email** : the authenticated principal (from `GOOGLE_CREDENTIALS`)
 - **created_project_id** : ID of the newly created project
@@ -446,9 +446,9 @@ This document summarizes the key **outputs**, **common errors & fixes**, and a f
 
 ---
 
-## Common Errors & Fixes
+### Common Errors & Fixes
 
-### `SERVICE_DISABLED: Cloud Billing API has not been used in project …`
+#### `SERVICE_DISABLED: Cloud Billing API has not been used in project …`
 Enable **Cloud Billing API** (and other core APIs) **in the bootstrap project**:
 
 ```bash
@@ -463,7 +463,7 @@ This README captures concise fixes and commands for common permission-related is
 
 ---
 
-## Error: `AUTH_PERMISSION_DENIED` from `serviceusage.googleapis.com`
+### Error: `AUTH_PERMISSION_DENIED` from `serviceusage.googleapis.com`
 
 **Cause:**  
 The runner Service Account (SA) cannot list/enable services on the project it targets. For **bootstrap** API management, grant:
@@ -486,7 +486,7 @@ Remove bootstrap API management from Terraform and enable those APIs **once** ma
 
 ---
 
-## Error: Project creation / billing link denied
+### Error: Project creation / billing link denied
 
 **Fix:** Grant the runner SA these roles:
 
@@ -500,7 +500,7 @@ Remove bootstrap API management from Terraform and enable those APIs **once** ma
 
 ---
 
-## Double-check which SA env0 is using
+### Double-check which SA env0 is using
 
 Add this step to your `env0.yaml` to print the caller SA email at runtime:
 
@@ -509,7 +509,7 @@ Add this step to your `env0.yaml` to print the caller SA email at runtime:
 
 ---
 
-## Example: Query the Bucket After Deploy
+### Example: Query the Bucket After Deploy
 
     # Replace with the output value
     BUCKET="<created-bucket-name>"
@@ -517,14 +517,14 @@ Add this step to your `env0.yaml` to print the caller SA email at runtime:
 
 ---
 
-## Cleanup
+### Cleanup
 
 From **env0**, click **Destroy** on the environment.  
 This removes the bucket, optional PD, and the newly created project (via Project Factory).
 
 ---
 
-## FAQ
+### FAQ
 
 **Q: Can I use OpenTofu with the upstream Terraform modules?**  
 **A:** Yes. Google Project Factory v18 is tested with Terraform 1.10+ and works with OpenTofu in practice. Pin the **Google provider `~> 7.0`**.
