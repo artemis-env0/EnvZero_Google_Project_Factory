@@ -10,6 +10,8 @@ output "whoami_email" {
 }
 
 # Make sure required APIs are ON in the BOOTSTRAP project (provider context)
+## Commented Out > Debugging (AGA) - Uncomment when going live [Likely SA Doesn't have Perms]
+/*
 resource "google_project_service" "bootstrap_services" {
   for_each = toset([
     "cloudresourcemanager.googleapis.com",
@@ -21,7 +23,7 @@ resource "google_project_service" "bootstrap_services" {
   service            = each.key
   disable_on_destroy = false
 }
-
+*/
 # Create a NEW project via Project Factory v18
 
 module "project_factory" {
