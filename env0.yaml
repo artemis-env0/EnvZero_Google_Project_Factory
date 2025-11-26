@@ -11,6 +11,10 @@ deploy:
             echo "jq:" && jq --version || true
             echo "ENV0_OPENTOFU_VERSION=${ENV0_OPENTOFU_VERSION:-unset}"
 
+      - name: Show caller SA email
+        run: |
+          echo "$GOOGLE_CREDENTIALS" | jq -r '.client_email'
+
         - name: Validate required inputs
           run: |
             REQUIRED=( TF_VAR_bootstrap_project_id TF_VAR_billing_account )
