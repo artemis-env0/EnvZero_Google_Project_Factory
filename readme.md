@@ -1,4 +1,4 @@
-# env0 + OpenTofu + Google Project Factory (GPF) | Demo
+# (env0 w [OpenTofu + Google Project Factory (GPF)] | Demo Package
 
 This repository demonstrates a minimal, **env0-driven** workflow that:
 
