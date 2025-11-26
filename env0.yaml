@@ -7,13 +7,35 @@ deploy:
       after:
         - name: Print tool versions
           run: |
-            echo "OpenTofu:" && tofu version || true
-            echo "jq:" && jq --version || true
+            echo "=== Tool versions ==="
+            tofu version || true
+            jq --version || true
             echo "ENV0_OPENTOFU_VERSION=${ENV0_OPENTOFU_VERSION:-unset}"
 
-      - name: Show caller SA email
-        run: |
-          echo "$GOOGLE_CREDENTIALS" | jq -r '.client_email'
+        - name: Show caller SA email from GOOGLE_CREDENTIALS
+          run: |
+            if [ -z "${GOOGLE_CREDENTIALS}" ]; then
+              echo "GOOGLE_CREDENTIALS is empty or not set!" 1>&2
+              exit 1
+            fi
+            # Safely parse the service account email (no private key output)
+            SA_EMAIL="$(echo "$GOOGLE_CREDENTIALS" | jq -r '.client_email')"
+            if [ -z "$SA_EMAIL" ] || [ "$SA_EMAIL" = "null" ]; then
+              echo "Could not parse client_email from GOOGLE_CREDENTIALS" 1>&2
+              exit 1
+            fi
+            echo "Caller SA email: $SA_EMAIL"
+
+        - name: Echo key Terraform vars
+          run: |
+            echo "bootstrap_project_id=${TF_VAR_bootstrap_project_id:-unset}"
+            echo "billing_account=${TF_VAR_billing_account:-unset}"
+            echo "org_id=${TF_VAR_org_id:-<empty>}"
+            echo "folder_id=${TF_VAR_folder_id:-<empty>}"
+            echo "project_name_prefix=${TF_VAR_project_name_prefix:-unset}"
+            echo "bucket_location=${TF_VAR_bucket_location:-unset}"
+            echo "enable_persistent_disk=${TF_VAR_enable_persistent_disk:-unset}"
+            echo "disk_zone=${TF_VAR_disk_zone:-unset}"
 
         - name: Validate required inputs
           run: |
@@ -42,4 +64,5 @@ deploy:
       after:
         - name: Print outputs (JSON)
           run: |
+            echo "=== OpenTofu outputs (JSON) ==="
             tofu output -json || true
