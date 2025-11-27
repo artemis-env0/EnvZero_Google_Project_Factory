@@ -1,4 +1,5 @@
-# Deploy OpenTofu via Google Project Factory (GPF) > EnvZero 
+<img width="98" height="80" alt="image" src="https://github.com/user-attachments/assets/e2ca24e2-8289-4001-879f-81c40a8a4df9" />
+Deploy using OpenTofu + Google Project Factory (GPF) + EnvZero 
 ----
 ## (env0) | Demo Package
 
