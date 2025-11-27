@@ -1,4 +1,4 @@
-### <img width="98" height="80" alt="image" src="https://github.com/user-attachments/assets/e2ca24e2-8289-4001-879f-81c40a8a4df9" />
+### <img width="56" height="56" alt="image" src="https://github.com/user-attachments/assets/e2ca24e2-8289-4001-879f-81c40a8a4df9" />
 
 Deploy using OpenTofu + Google Project Factory (GPF) + env0
 ----
