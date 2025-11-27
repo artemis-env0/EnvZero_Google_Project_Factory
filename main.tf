@@ -1,4 +1,5 @@
-# Stage 1 > Sanity Check: who am I authenticated as?
+# Sanity: who am I?
+
 data "google_client_openid_userinfo" "me" {}
 
 output "whoami_email" {
@@ -6,17 +7,13 @@ output "whoami_email" {
   description = "Authenticated principal email from GOOGLE_CREDENTIALS."
 }
 
-# Stage 2 > Small random suffix for the bucket name
-resource "random_id" "suffix" {
-  byte_length = 2
-}
+# Create a NEW project via Project Factory v18
 
-# Stage 3 > Project Factory: create a NEW project
 module "project_factory" {
   source  = "terraform-google-modules/project-factory/google"
   version = "~> 18.0"
 
-  # choose either org_id or folder_id; leave the other as empty string
+  # choose exactly one: org_id or folder_id (the other stays null)
   org_id    = var.org_id != "" ? var.org_id : null
   folder_id = var.folder_id != "" ? var.folder_id : null
 
@@ -24,14 +21,13 @@ module "project_factory" {
   billing_account   = var.billing_account
   random_project_id = true
 
-  # enable the APIs we need for our single resource (bucket) + basics
+  # enable APIs in the NEW project (for our test resources)
   activate_apis = var.activate_apis
 
-  # safer default SA posture in the new project
+  # safer default SA posture
   default_service_account = "deprivilege"
 }
 
-# convenient outputs for the created project
 output "created_project_id" {
   value       = module.project_factory.project_id
   description = "ID of the newly created project."
@@ -42,22 +38,32 @@ output "created_project_number" {
   description = "Number of the newly created project."
 }
 
-# Stage 4 > Single resource in the NEW project: one GCS bucket
-# we set project at the resource level (can't use outputs inside provider blocks)
+# Optional: ensure env0 SA can manage the new project
+
+resource "google_project_iam_member" "grant_editor_to_caller" {
+  count   = var.caller_sa_email == "" ? 0 : 1
+  project = module.project_factory.project_id
+  role    = "roles/editor" # tighten to specific roles if you prefer
+  member  = "serviceAccount:${var.caller_sa_email}"
+}
+
+# Test Resource A: One GCS bucket in NEW project
+
+resource "random_id" "suffix" {
+  byte_length = 2
+}
+
 resource "google_storage_bucket" "one_bucket" {
   name                        = "${module.project_factory.project_id}-bkt-${random_id.suffix.hex}"
   project                     = module.project_factory.project_id
   location                    = var.bucket_location
   uniform_bucket_level_access = true
   force_destroy               = true
+
   lifecycle_rule {
     action { type = "Delete" }
-    condition {
-      age = 30
-    }
+    condition { age = 30 }
   }
-
-  depends_on = [module.project_factory]
 }
 
 output "bucket_name" {
@@ -68,4 +74,20 @@ output "bucket_name" {
 output "bucket_url" {
   value       = "gs://${google_storage_bucket.one_bucket.name}"
   description = "gs:// URL of the bucket."
+}
+
+# Test Resource B (optional): Persistent Disk
+
+resource "google_compute_disk" "test_pd" {
+  count   = var.enable_persistent_disk ? 1 : 0
+  name    = "${module.project_factory.project_id}-pd-${var.disk_size_gb}g"
+  project = module.project_factory.project_id
+  zone    = var.disk_zone
+  type    = var.disk_type
+  size    = var.disk_size_gb
+}
+
+output "test_pd_self_link" {
+  value       = try(google_compute_disk.test_pd[0].self_link, null)
+  description = "Self link for the test persistent disk (only when enabled)."
 }
