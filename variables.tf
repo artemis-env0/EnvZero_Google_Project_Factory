@@ -48,7 +48,7 @@ variable "activate_apis" {
     "serviceusage.googleapis.com",
     "iam.googleapis.com",
     "storage.googleapis.com",
-    "compute.googleapis.com" # needed if you enable the persistent disk
+    "compute.googleapis.com"
   ]
 }
 
