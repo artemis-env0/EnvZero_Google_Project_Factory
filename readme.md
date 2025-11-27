@@ -1,4 +1,4 @@
-# Deploy OpenTofu via Google Project Factory (GPF) > EnvZero 
+# Deploy OpenTofu + Google Project Factory (GPF) > EnvZero 
 ----
 ## (env0) | Demo Package
 
