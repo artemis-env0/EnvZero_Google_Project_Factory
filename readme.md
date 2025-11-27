@@ -1,8 +1,8 @@
 ### <img width="98" height="80" alt="image" src="https://github.com/user-attachments/assets/e2ca24e2-8289-4001-879f-81c40a8a4df9" />
 
-Deploy using OpenTofu + Google Project Factory (GPF) + EnvZero 
+Deploy using OpenTofu + Google Project Factory (GPF) + env0
 ----
-## (env0) | Demo Package
+##  EnvZero | Demo Package
 
 This repository demonstrates a minimal, **env0-driven** workflow that:
 
