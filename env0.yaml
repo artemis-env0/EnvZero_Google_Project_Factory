@@ -25,6 +25,8 @@ deploy:
         - name: Resolve inputs (supports Terraform Variables or TF_VAR_*)
           run: |
             set -euo pipefail
+
+            # Helper: prefer TF_VAR_<name> if present, else bare Terraform Variable <name>
             resolve() {
               local key="$1"
               local tfvar="TF_VAR_${key}"
@@ -56,6 +58,7 @@ deploy:
             [ -z "${RES_BOOTSTRAP_PROJECT_ID}" ] && echo "Missing required variable: bootstrap_project_id" >&2 && missing=1
             [ -z "${RES_BILLING_ACCOUNT}" ] && echo "Missing required variable: billing_account" >&2 && missing=1
 
+            # Exactly one of org_id or folder_id
             count=0
             [ -n "${RES_ORG_ID}" ] && count=$((count+1))
             [ -n "${RES_FOLDER_ID}" ] && count=$((count+1))
@@ -68,14 +71,20 @@ deploy:
               exit 1
             fi
 
-            # SAFE defaults
+            # Safe defaults
             RES_PROJECT_NAME_PREFIX="${RES_PROJECT_NAME_PREFIX:-env0-tofu-gpf}"
             RES_BUCKET_LOCATION="${RES_BUCKET_LOCATION:-US}"
             RES_REGION="${RES_REGION:-us-central1}"
             RES_ENABLE_PD="${RES_ENABLE_PD:-false}"
             RES_DISK_ZONE="${RES_DISK_ZONE:-us-central1-a}"
 
-            # Write CORRECT tfvars (no TF_VAR_ prefixes as keys!)
+            # Normalize boolean for jq --argjson
+            EPD="$(echo "${RES_ENABLE_PD}" | tr '[:upper:]' '[:lower:]')"
+            if [ "${EPD}" != "true" ] && [ "${EPD}" != "false" ]; then
+              EPD="false"
+            fi
+
+            # Write CORRECT tfvars (keys are Terraform variable names; no TF_VAR_ prefixes)
             jq -n \
               --arg bpid "${RES_BOOTSTRAP_PROJECT_ID}" \
               --arg ba "${RES_BILLING_ACCOUNT}" \
@@ -85,12 +94,12 @@ deploy:
               --arg loc "${RES_BUCKET_LOCATION}" \
               --arg reg "${RES_REGION}" \
               --arg dz "${RES_DISK_ZONE}" \
-              --argjson epd "${RES_ENABLE_PD,,}" \
+              --argjson epd "${EPD}" \
               '{
                 bootstrap_project_id: $bpid,
                 billing_account: $ba,
-                org_id: ( ($oid|length)>0 ? $oid : null ),
-                folder_id: ( ($fid|length)>0 ? $fid : null ),
+                org_id: (if ($oid|length) > 0 then $oid else null end),
+                folder_id: (if ($fid|length) > 0 then $fid else null end),
                 project_name_prefix: $pfx,
                 bucket_location: $loc,
                 region: $reg,
