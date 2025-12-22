@@ -1,10 +1,20 @@
 version: 2
 shell: bash
 
+
 deploy:
   steps:
     setupVariables:
       after:
+        - name: Who is authenticated?
+          run: |
+            if [ -n "${GOOGLE_CREDENTIALS-}" ]; then
+              echo "$GOOGLE_CREDENTIALS" | jq -r '.client_email'
+            elif [ -n "${GOOGLE_APPLICATION_CREDENTIALS-}" ] && [ -f "$GOOGLE_APPLICATION_CREDENTIALS" ]; then
+              jq -r '.client_email' "$GOOGLE_APPLICATION_CREDENTIALS"
+            else
+              gcloud auth list --filter=status:ACTIVE --format='value(account)' || true
+            fi
         - name: Print tool versions
           run: |
             echo "=== Tool versions ==="
