@@ -20,7 +20,7 @@ variable "org_id" {
 }
 
 variable "folder_id" {
-  description = "Folder ID (numeric digits, e.g., 621599609930). Leave empty if using org_id."
+  description = "Folder ID (numeric, e.g., 621599609930). Leave empty if using org_id."
   type        = string
   default     = ""
 }
@@ -30,16 +30,18 @@ variable "billing_account" {
   type        = string
 }
 
-# Project creation/adoption controls
-
-variable "create_project" {
-  description = "If true, create a new project. If false, adopt/manage an existing project_id."
-  type        = bool
-  default     = true
+# Project selection
+# Set existing_project_id to ADOPT an existing project (skip Project Factory).
+# Leave existing_project_id empty to CREATE a new project (via Project Factory),
+# and optionally set project_id to force a specific ID. If empty, a random suffix is used.
+variable "existing_project_id" {
+  description = "If non-empty, adopt/manage this existing project instead of creating one."
+  type        = string
+  default     = ""
 }
 
 variable "project_id" {
-  description = "If set (non-empty), use this exact project ID. If empty, a random-suffixed ID is generated from project_name_prefix."
+  description = "Exact project ID to create (only used when existing_project_id is empty). If empty, a random-suffixed ID is generated from project_name_prefix."
   type        = string
   default     = ""
 }
@@ -47,12 +49,12 @@ variable "project_id" {
 # Convenience / naming
 
 variable "project_name_prefix" {
-  description = "Prefix for the project's display name and, if project_id is empty, the base for the generated project ID."
+  description = "Prefix for the project's display name and for generated IDs."
   type        = string
   default     = "env0-tofu-gpf"
 }
 
-# APIs to enable in the project (module manages these)
+# APIs to enable
 
 variable "activate_apis" {
   description = "APIs to enable in the project."
