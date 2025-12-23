@@ -1,6 +1,6 @@
 // iam_access.tf
-// Grants your user read access to the newly-created project and the bucket,
-// so you can see/query it in Console and with gcloud/gsutil.
+// Grants your user read access to the newly-created project and bucket,
+// looking up the bucket by NAME (no dependency on how the bucket resource is named).
 
 variable "user_viewer_email" {
   type        = string
@@ -8,53 +8,47 @@ variable "user_viewer_email" {
   default     = "artem.artyunov@env0.com"
 }
 
+variable "bucket_name_for_iam" {
+  type        = string
+  description = "Existing GCS bucket name to grant read access to (e.g., env0-demo-0d2a-bkt-1983)"
+}
+
 locals {
   user_member = "user:${var.user_viewer_email}"
 }
 
 /*
-  Project-level read (general):
-  - roles/viewer gives you read-only visibility across most services,
-    but does NOT include storage.buckets.get in all orgs/policies.
+  Project-level read:
+  - roles/viewer provides general, read-only visibility across most services.
 */
 resource "google_project_iam_member" "viewer_me" {
   project = module.project_factory.project_id
   role    = "roles/viewer"
   member  = local.user_member
+
   depends_on = [module.project_factory]
 }
 
 /*
+  Bucket lookup by name (no dependency on a local resource name/address).
+*/
+data "google_storage_bucket" "target" {
+  name = var.bucket_name_for_iam
+}
+
+/*
   Bucket-level read (least-privilege for Cloud Storage):
-  - roles/storage.objectViewer      : list/get objects (no writes)
+  - roles/storage.objectViewer      : list/get objects
   - roles/storage.legacyBucketReader: bucket metadata (includes storage.buckets.get)
-    Note: legacyBucketReader is the standard way to allow bucket metadata reads
-    without broad project-wide storage roles.
 */
 resource "google_storage_bucket_iam_member" "bucket_object_viewer_me" {
-  bucket = google_storage_bucket.test_bucket.name
+  bucket = data.google_storage_bucket.target.name
   role   = "roles/storage.objectViewer"
   member = local.user_member
-  depends_on = [google_storage_bucket.test_bucket]
 }
 
 resource "google_storage_bucket_iam_member" "bucket_metadata_viewer_me" {
-  bucket = google_storage_bucket.test_bucket.name
+  bucket = data.google_storage_bucket.target.name
   role   = "roles/storage.legacyBucketReader"
   member = local.user_member
-  depends_on = [google_storage_bucket.test_bucket]
 }
-
-/* --------------------------------------------------------------------------
-   OPTIONAL: If you prefer a quick/unlock at project scope instead of the
-   two bucket-level bindings above, comment them out and use this instead.
-   This grants broad Storage admin at the project (temporary recommended).
----------------------------------------------------------------------------
-
-resource "google_project_iam_member" "storage_admin_me" {
-  project = module.project_factory.project_id
-  role    = "roles/storage.admin"
-  member  = local.user_member
-  depends_on = [module.project_factory]
-}
-*/
