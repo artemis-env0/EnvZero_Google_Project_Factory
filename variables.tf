@@ -20,7 +20,7 @@ variable "org_id" {
 }
 
 variable "folder_id" {
-  description = "Folder ID in the form 'folders/123456789012' (leave empty if using org_id)."
+  description = "Folder ID (numeric digits, e.g., 621599609930). Leave empty if using org_id."
   type        = string
   default     = ""
 }
@@ -30,18 +30,32 @@ variable "billing_account" {
   type        = string
 }
 
+# Project ID control
+
+variable "create_project" {
+  description = "If true, create a new project. If false, adopt/manage an existing project_id."
+  type        = bool
+  default     = true
+}
+
+variable "project_id" {
+  description = "If set (non-empty), use this exact project ID. If empty, a random-suffixed ID is generated from project_name_prefix."
+  type        = string
+  default     = ""
+}
+
 # Convenience / naming
 
 variable "project_name_prefix" {
-  description = "Prefix for the new project's display name."
+  description = "Prefix for the new project's display name and, if project_id is empty, the base for the generated project ID."
   type        = string
   default     = "env0-tofu-gpf"
 }
 
-# APIs to enable in NEW project
+# APIs to enable in NEW/existing project (managed by the module)
 
 variable "activate_apis" {
-  description = "APIs to enable in the new project."
+  description = "APIs to enable in the project."
   type        = list(string)
   default = [
     "cloudresourcemanager.googleapis.com",
@@ -71,7 +85,7 @@ variable "bucket_location" {
 # Persistent Disk (optional)
 
 variable "enable_persistent_disk" {
-  description = "Set true to create a test persistent disk in the new project."
+  description = "Set true to create a test persistent disk in the project."
   type        = bool
   default     = false
 }
