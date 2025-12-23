@@ -1,4 +1,6 @@
-# Sanity: who am I?
+################################################################################
+# Who am I?
+################################################################################
 
 data "google_client_openid_userinfo" "me" {}
 
@@ -7,38 +9,63 @@ output "whoami_email" {
   description = "Authenticated principal email from GOOGLE_CREDENTIALS."
 }
 
-# Create a NEW project via Project Factory v18
+################################################################################
+# Project ID strategy (solve 409 conflicts)
+################################################################################
+
+# If project_id is empty, generate a random-suffixed ID from the prefix.
+resource "random_id" "project" {
+  byte_length = 2
+}
+
+locals {
+  # Use explicit project_id when provided, otherwise prefix + random hex
+  final_project_id = var.project_id != "" ? var.project_id : "${var.project_name_prefix}-${random_id.project.hex}"
+
+  # Exactly one parent: org OR folder (module expects null for the unused one)
+  parent_org_id    = var.org_id    != "" ? var.org_id    : null
+  parent_folder_id = var.folder_id != "" ? var.folder_id : null
+}
+
+################################################################################
+# Create or adopt project via Project Factory v18
+################################################################################
 
 module "project_factory" {
   source  = "terraform-google-modules/project-factory/google"
   version = "~> 18.0"
 
-  # choose exactly one: org_id or folder_id (the other stays null)
-  org_id    = var.org_id != "" ? var.org_id : null
-  folder_id = var.folder_id != "" ? var.folder_id : null
+  # Parent (only matters when create_project=true)
+  org_id    = local.parent_org_id
+  folder_id = local.parent_folder_id
 
-  name              = var.project_name_prefix
-  billing_account   = var.billing_account
-  random_project_id = true
+  # Control creation vs adoption
+  create_project   = var.create_project
+  project_id       = local.final_project_id
+  name             = var.project_name_prefix
 
-  # enable APIs in the NEW project (for our test resources)
-  activate_apis = var.activate_apis
-
-  # safer default SA posture
+  # Billing + APIs
+  billing_account       = var.billing_account
+  activate_apis         = var.activate_apis
   default_service_account = "deprivilege"
+
+  # We provide the ID ourselves, so do not auto-randomize in the module
+  random_project_id = false
 }
 
 output "created_project_id" {
   value       = module.project_factory.project_id
-  description = "ID of the newly created project."
+  description = "ID of the created/adopted project."
 }
 
 output "created_project_number" {
   value       = module.project_factory.project_number
-  description = "Number of the newly created project."
+  description = "Number of the created/adopted project."
 }
 
-# Optional: ensure env0 SA can manage the new project
+################################################################################
+# Optional: ensure env0 SA can manage the project
+################################################################################
 
 resource "google_project_iam_member" "grant_editor_to_caller" {
   count   = var.caller_sa_email == "" ? 0 : 1
@@ -47,7 +74,9 @@ resource "google_project_iam_member" "grant_editor_to_caller" {
   member  = "serviceAccount:${var.caller_sa_email}"
 }
 
-# Test Resource A: One GCS bucket in NEW project
+################################################################################
+# Test Resource A: One GCS bucket in the project
+################################################################################
 
 resource "random_id" "suffix" {
   byte_length = 2
@@ -61,14 +90,14 @@ resource "google_storage_bucket" "one_bucket" {
   force_destroy               = true
 
   lifecycle_rule {
-    action { type = "Delete" }
+    action    { type = "Delete" }
     condition { age = 30 }
   }
 }
 
 output "bucket_name" {
   value       = google_storage_bucket.one_bucket.name
-  description = "Name of the bucket created in the new project."
+  description = "Name of the bucket created in the project."
 }
 
 output "bucket_url" {
@@ -76,7 +105,9 @@ output "bucket_url" {
   description = "gs:// URL of the bucket."
 }
 
+################################################################################
 # Test Resource B (optional): Persistent Disk
+################################################################################
 
 resource "google_compute_disk" "test_pd" {
   count   = var.enable_persistent_disk ? 1 : 0
