@@ -109,6 +109,12 @@ deploy:
 
             echo "Wrote env0.auto.tfvars.json with proper keys."
 
+        # === A) Confirm what parent the run is sending ===
+        - name: Debug parent inputs (org_id vs folder_id)
+          run: |
+            echo "== parent debug =="
+            jq '{org_id, folder_id}' env0.auto.tfvars.json
+
     terraformApply:
       after:
         - name: Print outputs (JSON)
