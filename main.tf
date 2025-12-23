@@ -1,6 +1,6 @@
-################################################################################
+########################################
 # Who am I?
-################################################################################
+########################################
 
 data "google_client_openid_userinfo" "me" {}
 
@@ -9,80 +9,104 @@ output "whoami_email" {
   description = "Authenticated principal email from GOOGLE_CREDENTIALS."
 }
 
-################################################################################
-# Project ID strategy (module gets an explicit ID)
-################################################################################
+########################################
+# Decide: create new vs adopt existing
+########################################
 
-# If project_id is empty, a random-suffixed ID will be supplied by env0 pre-step.
-# (We still keep a random here if you later want to switch to TF-only control.)
+# Random suffix only used when creating a new project AND no explicit project_id given.
 resource "random_id" "project" {
   byte_length = 2
 }
 
 locals {
-  final_project_id = var.project_id != "" ? var.project_id : "${var.project_name_prefix}-${random_id.project.hex}"
-  parent_org_id    = var.org_id    != "" ? var.org_id    : null
-  parent_folder_id = var.folder_id != "" ? var.folder_id : null
+  creating           = var.existing_project_id == ""
+  chosen_project_id  = local.creating ? (
+    var.project_id != "" ? var.project_id : "${var.project_name_prefix}-${random_id.project.hex}"
+  ) : var.existing_project_id
+
+  parent_org_id      = var.org_id    != "" ? var.org_id    : null
+  parent_folder_id   = var.folder_id != "" ? var.folder_id : null
 }
 
-################################################################################
-# Create or adopt project via Project Factory v18
-################################################################################
+########################################
+# Create (Project Factory) OR Adopt (data source)
+########################################
 
+# If creating, call the Project Factory module (it always creates/manages projects).
+# Ref: The module's README describes creation behavior; there's no `create_project` input. :contentReference[oaicite:0]{index=0}
 module "project_factory" {
+  count   = local.creating ? 1 : 0
   source  = "terraform-google-modules/project-factory/google"
   version = "~> 18.0"
 
-  # Parent (only matters when create_project=true)
   org_id    = local.parent_org_id
   folder_id = local.parent_folder_id
 
-  # Creation vs adoption (env0 pre-step decides final values)
-  create_project = var.create_project
-  project_id     = local.final_project_id
+  # We supply an explicit ID; disable module randomization.
+  project_id           = local.chosen_project_id
+  random_project_id    = false
 
-  # Naming / billing / APIs
-  name                   = var.project_name_prefix
-  billing_account        = var.billing_account
-  activate_apis          = var.activate_apis
+  name                    = var.project_name_prefix
+  billing_account         = var.billing_account
+  activate_apis           = var.activate_apis
   default_service_account = "deprivilege"
+}
 
-  # We supply an explicit project_id, so disable module's randomizer
-  random_project_id = false
+# If adopting, look up the existing project and enable APIs ourselves.
+data "google_project" "adopted" {
+  count      = local.creating ? 0 : 1
+  project_id = var.existing_project_id
+}
+
+# When adopting, enable requested APIs in that project.
+resource "google_project_service" "apis_existing" {
+  count              = local.creating ? 0 : length(var.activate_apis)
+  project            = data.google_project.adopted[0].project_id
+  service            = var.activate_apis[count.index]
+  disable_on_destroy = true
+}
+
+########################################
+# Effective project reference (works for both paths)
+########################################
+
+locals {
+  effective_project_id     = local.creating ? module.project_factory[0].project_id   : data.google_project.adopted[0].project_id
+  effective_project_number = local.creating ? module.project_factory[0].project_number : data.google_project.adopted[0].number
 }
 
 output "created_project_id" {
-  value       = module.project_factory.project_id
+  value       = local.effective_project_id
   description = "ID of the created/adopted project."
 }
 
 output "created_project_number" {
-  value       = module.project_factory.project_number
+  value       = local.effective_project_number
   description = "Number of the created/adopted project."
 }
 
-################################################################################
+########################################
 # Optional: ensure env0 SA can manage the project
-################################################################################
+########################################
 
 resource "google_project_iam_member" "grant_editor_to_caller" {
   count   = var.caller_sa_email == "" ? 0 : 1
-  project = module.project_factory.project_id
+  project = local.effective_project_id
   role    = "roles/editor"
   member  = "serviceAccount:${var.caller_sa_email}"
 }
 
-################################################################################
+########################################
 # Test Resource A: One GCS bucket in the project
-################################################################################
+########################################
 
 resource "random_id" "suffix" {
   byte_length = 2
 }
 
 resource "google_storage_bucket" "one_bucket" {
-  name                        = "${module.project_factory.project_id}-bkt-${random_id.suffix.hex}"
-  project                     = module.project_factory.project_id
+  name                        = "${local.effective_project_id}-bkt-${random_id.suffix.hex}"
+  project                     = local.effective_project_id
   location                    = var.bucket_location
   uniform_bucket_level_access = true
   force_destroy               = true
@@ -103,14 +127,14 @@ output "bucket_url" {
   description = "gs:// URL of the bucket."
 }
 
-################################################################################
+########################################
 # Test Resource B (optional): Persistent Disk
-################################################################################
+########################################
 
 resource "google_compute_disk" "test_pd" {
   count   = var.enable_persistent_disk ? 1 : 0
-  name    = "${module.project_factory.project_id}-pd-${var.disk_size_gb}g"
-  project = module.project_factory.project_id
+  name    = "${local.effective_project_id}-pd-${var.disk_size_gb}g"
+  project = local.effective_project_id
   zone    = var.disk_zone
   type    = var.disk_type
   size    = var.disk_size_gb
