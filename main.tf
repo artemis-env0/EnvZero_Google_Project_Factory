@@ -10,19 +10,17 @@ output "whoami_email" {
 }
 
 ################################################################################
-# Project ID strategy (solve 409 conflicts)
+# Project ID strategy (module gets an explicit ID)
 ################################################################################
 
-# If project_id is empty, generate a random-suffixed ID from the prefix.
+# If project_id is empty, a random-suffixed ID will be supplied by env0 pre-step.
+# (We still keep a random here if you later want to switch to TF-only control.)
 resource "random_id" "project" {
   byte_length = 2
 }
 
 locals {
-  # Use explicit project_id when provided, otherwise prefix + random hex
   final_project_id = var.project_id != "" ? var.project_id : "${var.project_name_prefix}-${random_id.project.hex}"
-
-  # Exactly one parent: org OR folder (module expects null for the unused one)
   parent_org_id    = var.org_id    != "" ? var.org_id    : null
   parent_folder_id = var.folder_id != "" ? var.folder_id : null
 }
@@ -39,17 +37,17 @@ module "project_factory" {
   org_id    = local.parent_org_id
   folder_id = local.parent_folder_id
 
-  # Control creation vs adoption
-  create_project   = var.create_project
-  project_id       = local.final_project_id
-  name             = var.project_name_prefix
+  # Creation vs adoption (env0 pre-step decides final values)
+  create_project = var.create_project
+  project_id     = local.final_project_id
 
-  # Billing + APIs
-  billing_account       = var.billing_account
-  activate_apis         = var.activate_apis
+  # Naming / billing / APIs
+  name                   = var.project_name_prefix
+  billing_account        = var.billing_account
+  activate_apis          = var.activate_apis
   default_service_account = "deprivilege"
 
-  # We provide the ID ourselves, so do not auto-randomize in the module
+  # We supply an explicit project_id, so disable module's randomizer
   random_project_id = false
 }
 
@@ -70,7 +68,7 @@ output "created_project_number" {
 resource "google_project_iam_member" "grant_editor_to_caller" {
   count   = var.caller_sa_email == "" ? 0 : 1
   project = module.project_factory.project_id
-  role    = "roles/editor" # tighten to specific roles if you prefer
+  role    = "roles/editor"
   member  = "serviceAccount:${var.caller_sa_email}"
 }
 
