@@ -5,64 +5,120 @@ deploy:
   steps:
     setupVariables:
       after:
-        - name: Print tool versions
+        - name: Who is authenticated?
           run: |
-            echo "=== Tool versions ==="
-            tofu version || true
-            jq --version || true
-            echo "ENV0_OPENTOFU_VERSION=${ENV0_OPENTOFU_VERSION:-unset}"
-
-        - name: Show caller SA email from GOOGLE_CREDENTIALS
-          run: |
-            if [ -z "${GOOGLE_CREDENTIALS}" ]; then
-              echo "GOOGLE_CREDENTIALS is empty or not set!" 1>&2
-              exit 1
+            set -euo pipefail
+            echo "=== Authenticated principal ==="
+            if [ -n "${GOOGLE_CREDENTIALS-}" ]; then
+              echo "$GOOGLE_CREDENTIALS" | jq -r '.client_email'
+            elif [ -n "${GOOGLE_APPLICATION_CREDENTIALS-}" ] && [ -f "$GOOGLE_APPLICATION_CREDENTIALS" ]; then
+              jq -r '.client_email' "$GOOGLE_APPLICATION_CREDENTIALS"
+            else
+              gcloud auth list --filter=status:ACTIVE --format='value(account)' || true
             fi
-            # Safely parse the service account email (no private key output)
-            SA_EMAIL="$(echo "$GOOGLE_CREDENTIALS" | jq -r '.client_email')"
-            if [ -z "$SA_EMAIL" ] || [ "$SA_EMAIL" = "null" ]; then
-              echo "Could not parse client_email from GOOGLE_CREDENTIALS" 1>&2
-              exit 1
+
+        - name: Remove any stale/bad tfvars
+          run: |
+            rm -f env0.auto.tfvars.json
+            echo "Removed stale env0.auto.tfvars.json (if existed)."
+
+        - name: Resolve inputs (supports Terraform Variables or TF_VAR_*)
+          run: |
+            set -euo pipefail
+
+            # Helper: prefer TF_VAR_<name> if present, else bare <name>
+            resolve() {
+              local key="$1"
+              local tfvar="TF_VAR_${key}"
+              if [ -n "${!tfvar-}" ]; then
+                echo "${!tfvar}"
+              elif [ -n "${!key-}" ]; then
+                echo "${!key}"
+              else
+                echo ""
+              fi
+            }
+
+            export RES_BOOTSTRAP_PROJECT_ID="$(resolve bootstrap_project_id)"
+            export RES_BILLING_ACCOUNT="$(resolve billing_account)"
+            export RES_ORG_ID="$(resolve org_id)"
+            export RES_FOLDER_ID="$(resolve folder_id)"
+            export RES_PROJECT_NAME_PREFIX="$(resolve project_name_prefix)"
+            export RES_BUCKET_LOCATION="$(resolve bucket_location)"
+            export RES_REGION="$(resolve region)"
+            export RES_ENABLE_PD="$(resolve enable_persistent_disk)"
+            export RES_DISK_ZONE="$(resolve disk_zone)"
+
+            echo "bootstrap_project_id=${RES_BOOTSTRAP_PROJECT_ID:-<missing>}"
+            echo "billing_account=${RES_BILLING_ACCOUNT:-<missing>}"
+            echo "org_id=${RES_ORG_ID:-<empty>}"
+            echo "folder_id=${RES_FOLDER_ID:-<empty>}"
+
+            # --- Folder wins if both provided (avoids org policies requiring folders) ---
+            if [ -n "${RES_ORG_ID}" ] && [ -n "${RES_FOLDER_ID}" ]; then
+              echo "Both org_id and folder_id were provided; proceeding with folder_id=${RES_FOLDER_ID} and ignoring org_id=${RES_ORG_ID}" >&2
+              RES_ORG_ID=""
             fi
-            echo "Caller SA email: $SA_EMAIL"
 
-        - name: Echo key Terraform vars
-          run: |
-            echo "bootstrap_project_id=${TF_VAR_bootstrap_project_id:-unset}"
-            echo "billing_account=${TF_VAR_billing_account:-unset}"
-            echo "org_id=${TF_VAR_org_id:-<empty>}"
-            echo "folder_id=${TF_VAR_folder_id:-<empty>}"
-            echo "project_name_prefix=${TF_VAR_project_name_prefix:-unset}"
-            echo "bucket_location=${TF_VAR_bucket_location:-unset}"
-            echo "enable_persistent_disk=${TF_VAR_enable_persistent_disk:-unset}"
-            echo "disk_zone=${TF_VAR_disk_zone:-unset}"
-
-        - name: Validate required inputs
-          run: |
-            REQUIRED=( TF_VAR_bootstrap_project_id TF_VAR_billing_account )
-            ONE_OF=( TF_VAR_org_id TF_VAR_folder_id )
             missing=0
+            [ -z "${RES_BOOTSTRAP_PROJECT_ID}" ] && echo "Missing required variable: bootstrap_project_id" >&2 && missing=1
+            [ -z "${RES_BILLING_ACCOUNT}" ] && echo "Missing required variable: billing_account" >&2 && missing=1
 
-            for v in "${REQUIRED[@]}"; do
-              if [ -z "${!v}" ]; then echo "Missing required variable: $v" 1>&2; missing=1; fi
-            done
-
-            count_one_of=0
-            for v in "${ONE_OF[@]}"; do
-              [ -n "${!v}" ] && count_one_of=$((count_one_of+1))
-            done
-            if [ "$count_one_of" -ne 1 ]; then
-              echo "Exactly one of TF_VAR_org_id or TF_VAR_folder_id must be set (not both / not none)." 1>&2
+            # Exactly one must remain set after the 'folder-wins' rule
+            if [ -z "${RES_ORG_ID}" ] && [ -z "${RES_FOLDER_ID}" ]; then
+              echo "Exactly one of org_id or folder_id must be set (not both / not none)." >&2
               missing=1
             fi
 
-            if [ "$missing" -ne 0 ]; then
+            if [ "${missing}" -ne 0 ]; then
               exit 1
             fi
+
+            # Safe defaults
+            RES_PROJECT_NAME_PREFIX="${RES_PROJECT_NAME_PREFIX:-env0-tofu-gpf}"
+            RES_BUCKET_LOCATION="${RES_BUCKET_LOCATION:-US}"
+            RES_REGION="${RES_REGION:-us-central1}"
+            RES_ENABLE_PD="${RES_ENABLE_PD:-false}"
+            RES_DISK_ZONE="${RES_DISK_ZONE:-us-central1-a}"
+
+            # Normalize boolean for jq --argjson
+            EPD="$(echo "${RES_ENABLE_PD}" | tr '[:upper:]' '[:lower:]')"
+            if [ "${EPD}" != "true" ] && [ "${EPD}" != "false" ]; then
+              EPD="false"
+            fi
+
+            # Write CORRECT tfvars (keys are Terraform variable names; no TF_VAR_ prefixes)
+            jq -n \
+              --arg bpid "${RES_BOOTSTRAP_PROJECT_ID}" \
+              --arg ba "${RES_BILLING_ACCOUNT}" \
+              --arg oid "${RES_ORG_ID}" \
+              --arg fid "${RES_FOLDER_ID}" \
+              --arg pfx "${RES_PROJECT_NAME_PREFIX}" \
+              --arg loc "${RES_BUCKET_LOCATION}" \
+              --arg reg "${RES_REGION}" \
+              --arg dz "${RES_DISK_ZONE}" \
+              --argjson epd "${EPD}" \
+              '{
+                bootstrap_project_id: $bpid,
+                billing_account: $ba,
+                org_id: (if ($oid|length) > 0 then $oid else null end),
+                folder_id: (if ($fid|length) > 0 then $fid else null end),
+                project_name_prefix: $pfx,
+                bucket_location: $loc,
+                region: $reg,
+                enable_persistent_disk: $epd,
+                disk_zone: $dz
+              }' > env0.auto.tfvars.json
+
+            echo "Wrote env0.auto.tfvars.json with proper keys."
+
+        - name: Debug parent inputs (org_id vs folder_id)
+          run: |
+            echo "== parent debug =="
+            jq '{org_id, folder_id}' env0.auto.tfvars.json
 
     terraformApply:
       after:
         - name: Print outputs (JSON)
           run: |
-            echo "=== OpenTofu outputs (JSON) ==="
             tofu output -json || true
