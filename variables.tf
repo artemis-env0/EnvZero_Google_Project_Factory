@@ -30,7 +30,7 @@ variable "billing_account" {
   type        = string
 }
 
-# Project ID control
+# Project creation/adoption controls
 
 variable "create_project" {
   description = "If true, create a new project. If false, adopt/manage an existing project_id."
@@ -47,12 +47,12 @@ variable "project_id" {
 # Convenience / naming
 
 variable "project_name_prefix" {
-  description = "Prefix for the new project's display name and, if project_id is empty, the base for the generated project ID."
+  description = "Prefix for the project's display name and, if project_id is empty, the base for the generated project ID."
   type        = string
   default     = "env0-tofu-gpf"
 }
 
-# APIs to enable in NEW/existing project (managed by the module)
+# APIs to enable in the project (module manages these)
 
 variable "activate_apis" {
   description = "APIs to enable in the project."
@@ -62,7 +62,7 @@ variable "activate_apis" {
     "serviceusage.googleapis.com",
     "iam.googleapis.com",
     "storage.googleapis.com",
-    "compute.googleapis.com" # needed if you enable the persistent disk
+    "compute.googleapis.com"
   ]
 }
 
