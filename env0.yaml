@@ -26,7 +26,7 @@ deploy:
           run: |
             set -euo pipefail
 
-            # Helper: prefer TF_VAR_<name> if present, else bare Terraform Variable <name>
+            # Helper: prefer TF_VAR_<name> if present, else bare <name>
             resolve() {
               local key="$1"
               local tfvar="TF_VAR_${key}"
@@ -54,15 +54,18 @@ deploy:
             echo "org_id=${RES_ORG_ID:-<empty>}"
             echo "folder_id=${RES_FOLDER_ID:-<empty>}"
 
+            # --- Folder wins if both provided (avoids org policies requiring folders) ---
+            if [ -n "${RES_ORG_ID}" ] && [ -n "${RES_FOLDER_ID}" ]; then
+              echo "Both org_id and folder_id were provided; proceeding with folder_id=${RES_FOLDER_ID} and ignoring org_id=${RES_ORG_ID}" >&2
+              RES_ORG_ID=""
+            fi
+
             missing=0
             [ -z "${RES_BOOTSTRAP_PROJECT_ID}" ] && echo "Missing required variable: bootstrap_project_id" >&2 && missing=1
             [ -z "${RES_BILLING_ACCOUNT}" ] && echo "Missing required variable: billing_account" >&2 && missing=1
 
-            # Exactly one of org_id or folder_id
-            count=0
-            [ -n "${RES_ORG_ID}" ] && count=$((count+1))
-            [ -n "${RES_FOLDER_ID}" ] && count=$((count+1))
-            if [ "${count}" -ne 1 ]; then
+            # Exactly one must remain set after the 'folder-wins' rule
+            if [ -z "${RES_ORG_ID}" ] && [ -z "${RES_FOLDER_ID}" ]; then
               echo "Exactly one of org_id or folder_id must be set (not both / not none)." >&2
               missing=1
             fi
@@ -109,7 +112,6 @@ deploy:
 
             echo "Wrote env0.auto.tfvars.json with proper keys."
 
-        # === A) Confirm what parent the run is sending ===
         - name: Debug parent inputs (org_id vs folder_id)
           run: |
             echo "== parent debug =="
