@@ -35,8 +35,8 @@ variable "billing_account" {
 }
 
 # Project selection (create vs adopt)
-# - Set existing_project_id to ADOPT that project (skip Project Factory).
-# - Otherwise we CREATE a new project with project_id (or auto-generate one).
+# Set existing_project_id to ADOPT that project (skip Project Factory).
+# Otherwise we CREATE a new project with project_id (or auto-generate one).
 variable "existing_project_id" {
   description = "If non-empty, adopt/manage this existing project instead of creating one."
   type        = string
