@@ -17,14 +17,16 @@ deploy:
               gcloud auth list --filter=status:ACTIVE --format='value(account)' || true
             fi
 
-        - name: Remove any stale/bad tfvars
-          run: |
-            rm -f env0.auto.tfvars.json
-            echo "Removed stale env0.auto.tfvars.json (if existed)."
-
-        - name: Resolve inputs (supports Terraform Variables or TF_VAR_*)
+        # IMPORTANT: write inputs ONCE per deployment (avoid plan/apply drift).
+        - name: Decide project (adopt or create) and write env0.auto.tfvars.json
           run: |
             set -euo pipefail
+
+            if [ -f env0.auto.tfvars.json ]; then
+              echo "env0.auto.tfvars.json already exists — not regenerating."
+              cat env0.auto.tfvars.json | jq '{existing_project_id, project_id, org_id, folder_id}'
+              exit 0
+            fi
 
             resolve() {
               local key="$1"
@@ -38,20 +40,19 @@ deploy:
               fi
             }
 
-            export RES_BOOTSTRAP_PROJECT_ID="$(resolve bootstrap_project_id)"
-            export RES_BILLING_ACCOUNT="$(resolve billing_account)"
-            export RES_ORG_ID="$(resolve org_id)"
-            export RES_FOLDER_ID="$(resolve folder_id)"
-            export RES_PROJECT_NAME_PREFIX="$(resolve project_name_prefix)"
-            export RES_BUCKET_LOCATION="$(resolve bucket_location)"
-            export RES_REGION="$(resolve region)"
-            export RES_ENABLE_PD="$(resolve enable_persistent_disk)"
-            export RES_DISK_ZONE="$(resolve disk_zone)"
-            export RES_CALLER_SA="$(resolve caller_sa_email)"
-
-            # Hints: user can force adopt/create
-            export RES_EXISTING_PROJECT_ID="$(resolve existing_project_id)" # adopt
-            export RES_PROJECT_ID_HINT="$(resolve project_id)"              # create with specific ID
+            # Inputs / hints
+            RES_BOOTSTRAP_PROJECT_ID="$(resolve bootstrap_project_id)"
+            RES_BILLING_ACCOUNT="$(resolve billing_account)"
+            RES_ORG_ID="$(resolve org_id)"
+            RES_FOLDER_ID="$(resolve folder_id)"
+            RES_PROJECT_NAME_PREFIX="$(resolve project_name_prefix)"
+            RES_BUCKET_LOCATION="$(resolve bucket_location)"
+            RES_REGION="$(resolve region)"
+            RES_ENABLE_PD="$(resolve enable_persistent_disk)"
+            RES_DISK_ZONE="$(resolve disk_zone)"
+            RES_CALLER_SA="$(resolve caller_sa_email)"
+            RES_EXISTING_PROJECT_ID="$(resolve existing_project_id)"   # adopt path
+            RES_PROJECT_ID_HINT="$(resolve project_id)"                # create path (explicit)
 
             echo "bootstrap_project_id=${RES_BOOTSTRAP_PROJECT_ID:-<missing>}"
             echo "billing_account=${RES_BILLING_ACCOUNT:-<missing>}"
@@ -60,7 +61,7 @@ deploy:
             echo "existing_project_id(hint)=${RES_EXISTING_PROJECT_ID:-<none>}"
             echo "project_id(hint)=${RES_PROJECT_ID_HINT:-<none>}"
 
-            # Folder wins if both provided
+            # Parent selection rule: FOLDER wins if both provided
             if [ -n "${RES_ORG_ID}" ] && [ -n "${RES_FOLDER_ID}" ]; then
               echo "Both org_id and folder_id were provided; proceeding with folder_id=${RES_FOLDER_ID} and ignoring org_id=${RES_ORG_ID}" >&2
               RES_ORG_ID=""
@@ -73,12 +74,10 @@ deploy:
               echo "Exactly one of org_id or folder_id must be set (not both / not none)." >&2
               missing=1
             fi
-            if [ "${missing}" -ne 0 ]; then
-              exit 1
-            fi
+            [ "${missing}" -ne 0 ] && exit 1
 
             # Defaults
-            RES_PROJECT_NAME_PREFIX="${RES_PROJECT_NAME_PREFIX:-env0-tofu-gpf}"
+            RES_PROJECT_NAME_PREFIX="${RES_PROJECT_NAME_PREFIX:-env-demo}"
             RES_BUCKET_LOCATION="${RES_BUCKET_LOCATION:-US}"
             RES_REGION="${RES_REGION:-us-central1}"
             RES_ENABLE_PD="${RES_ENABLE_PD:-false}"
@@ -90,7 +89,7 @@ deploy:
               EPD="false"
             fi
 
-            # rand hex
+            # rand hex generator for project ID suffix
             randhex() {
               if command -v openssl >/dev/null 2>&1; then
                 openssl rand -hex 2
@@ -99,42 +98,46 @@ deploy:
               fi
             }
 
+            # ---------- Decide project path (adopt vs create) ----------
             FINAL_EXISTING_ID=""
             FINAL_NEW_ID=""
 
-            # If user told us to adopt, trust that.
             if [ -n "${RES_EXISTING_PROJECT_ID}" ]; then
-              FINAL_EXISTING_ID="${RES_EXISTING_PROJECT_ID}"
-              echo "Adopting existing project_id=${FINAL_EXISTING_ID}"
-            else
-              # Otherwise, we are creating. Use hint or generate.
-              if [ -n "${RES_PROJECT_ID_HINT}" ]; then
-                CANDIDATE="${RES_PROJECT_ID_HINT}"
+              # Adopt: require the project to be describable
+              if gcloud projects describe "${RES_EXISTING_PROJECT_ID}" --format='value(lifecycleState)' >/dev/null 2>&1; then
+                FINAL_EXISTING_ID="${RES_EXISTING_PROJECT_ID}"
+                echo "Adopting existing project: ${FINAL_EXISTING_ID}"
               else
+                echo "ERROR: existing_project_id=${RES_EXISTING_PROJECT_ID} not found or no access." >&2
+                exit 1
+              fi
+            else
+              # Create path: choose candidate ID
+              CANDIDATE="${RES_PROJECT_ID_HINT}"
+              if [ -z "${CANDIDATE}" ]; then
                 CANDIDATE="${RES_PROJECT_NAME_PREFIX}-$(randhex)"
               fi
 
-              # If candidate exists but is DELETE_REQUESTED, generate a new one.
-              STATE=""
-              if gcloud projects describe "$CANDIDATE" --format='value(lifecycleState)' >/dev/null 2>&1; then
-                STATE="$(gcloud projects describe "$CANDIDATE" --format='value(lifecycleState)' || true)"
+              if gcloud projects describe "${CANDIDATE}" --format='value(lifecycleState)' >/dev/null 2>&1; then
+                STATE="$(gcloud projects describe "${CANDIDATE}" --format='value(lifecycleState)' || true)"
                 case "${STATE}" in
-                  DELETE_REQUESTED|DELETE_IN_PROGRESS|SUSPENDED)
-                    echo "Candidate ${CANDIDATE} has state=${STATE}; generating a fresh ID."
+                  DELETE_REQUESTED|DELETE_IN_PROGRESS|SUSPENDED|ACTIVE|CREATE_REQUESTED)
+                    echo "Candidate ${CANDIDATE} is ${STATE}; generating a fresh project ID."
                     FINAL_NEW_ID="${RES_PROJECT_NAME_PREFIX}-$(randhex)"
                     ;;
                   *)
-                    echo "Candidate ${CANDIDATE} is present (state=${STATE}); you likely want to adopt it. Set TF_VAR_existing_project_id=${CANDIDATE}."
-                    FINAL_NEW_ID="${CANDIDATE}"
+                    echo "Candidate ${CANDIDATE} present (state=${STATE}); generating a fresh project ID."
+                    FINAL_NEW_ID="${RES_PROJECT_NAME_PREFIX}-$(randhex)"
                     ;;
                 esac
               else
                 FINAL_NEW_ID="${CANDIDATE}"
               fi
-              echo "final new project_id=${FINAL_NEW_ID}"
+
+              echo "Final new project_id=${FINAL_NEW_ID}"
             fi
 
-            # Write tfvars
+            # ---------- Write tfvars ONCE ----------
             jq -n \
               --arg bpid "${RES_BOOTSTRAP_PROJECT_ID}" \
               --arg ba "${RES_BILLING_ACCOUNT}" \
@@ -160,10 +163,10 @@ deploy:
                 region: $reg,
                 enable_persistent_disk: $epd,
                 disk_zone: $dz,
-                caller_sa_email: (if ($caller|length) > 0 then $caller else null end)
+                caller_sa_email: (if ($caller|length) > 0 then $caller else "" end)
               }' > env0.auto.tfvars.json
 
-            echo "Wrote env0.auto.tfvars.json:"
+            echo "Wrote env0.auto.tfvars.json (sticky for this run):"
             cat env0.auto.tfvars.json | jq '{existing_project_id, project_id, org_id, folder_id}'
 
     terraformApply:
