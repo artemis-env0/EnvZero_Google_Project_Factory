@@ -1,23 +1,23 @@
 # ------------------------------------------------------------
 # IAM convenience grants (optional)
-# Lets env0 runner SA manage created project (if configured)
+# Lets env0 runner SA manage created/adopted project (if configured)
 # Lets the human deployer see/delete what was created
 # ------------------------------------------------------------
 
-# Ensure env0 SA can manage the new project (optional)
+# Ensure env0 SA can manage the project (optional)
 resource "google_project_iam_member" "grant_editor_to_caller" {
   count   = (var.caller_sa_email != null && var.caller_sa_email != "") ? 1 : 0
-  project = module.project_factory.project_id
+  project = local.effective_project_id
   role    = "roles/editor"
   member  = "serviceAccount:${var.caller_sa_email}"
 }
 
-# Give the deployer broad ability to delete resources in the created project (optional)
+# Give the deployer broad ability to delete resources in the project (optional)
 # NOTE: roles/editor allows deleting most resources created in the project,
 # but it does NOT grant org/folder-level ability to delete the project itself.
 resource "google_project_iam_member" "deployer_editor" {
   count   = (var.deployer_user_email != null && var.deployer_user_email != "" && var.grant_deployer_editor) ? 1 : 0
-  project = module.project_factory.project_id
+  project = local.effective_project_id
   role    = "roles/editor"
   member  = "user:${var.deployer_user_email}"
 }
