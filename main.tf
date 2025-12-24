@@ -1,9 +1,9 @@
-########################################
-# main.tf — Create NEW project via GPF or ADOPT existing,
+################################################################################
+# main.tf : Create NEW project via GPF or ADOPT existing,
 # then create a test bucket (and optional PD).
 # Uses local.effective_project_id everywhere so it works
 # for both create and adopt flows.
-########################################
+################################################################################
 
 # Who am I? (for debugging)
 data "google_client_openid_userinfo" "me" {}
@@ -13,11 +13,11 @@ output "whoami_email" {
   description = "Authenticated principal email from GOOGLE_CREDENTIALS."
 }
 
-########################################
+################################################################################
 # Decide: create new vs adopt existing
-# - If var.existing_project_id == ""  → CREATE new project via Project Factory
-# - If var.existing_project_id != ""  → ADOPT existing project, enable APIs directly
-########################################
+# - If var.existing_project_id == ""  > CREATE new project via Project Factory
+# - If var.existing_project_id != ""  > ADOPT existing project, enable APIs directly
+################################################################################
 
 # Random suffix only used when creating a new project AND no explicit project_id given.
 resource "random_id" "project" {
@@ -37,9 +37,9 @@ locals {
   parent_folder_id = var.folder_id != "" ? var.folder_id : null
 }
 
-########################################
+################################################################################
 # Create (Project Factory) OR Adopt (data source)
-########################################
+################################################################################
 
 # If creating, call the Project Factory module (it always creates/manages projects).
 module "project_factory" {
@@ -73,9 +73,9 @@ resource "google_project_service" "apis_existing" {
   disable_on_destroy = true
 }
 
-########################################
+################################################################################
 # Effective project reference (works for both paths)
-########################################
+################################################################################
 
 locals {
   effective_project_id     = local.creating ? module.project_factory[0].project_id     : data.google_project.adopted[0].project_id
@@ -95,9 +95,9 @@ output "created_project_number" {
   description = "Number of the created/adopted project."
 }
 
-########################################
+################################################################################
 # Optional: ensure env0 runner SA can manage the project
-########################################
+################################################################################
 
 resource "google_project_iam_member" "grant_editor_to_caller" {
   count   = local.caller_sa_sanitized == "" ? 0 : 1
@@ -106,9 +106,9 @@ resource "google_project_iam_member" "grant_editor_to_caller" {
   member  = "serviceAccount:${local.caller_sa_sanitized}"
 }
 
-########################################
+################################################################################
 # Test Resource A: One GCS bucket in the project
-########################################
+################################################################################
 
 resource "random_id" "suffix" {
   byte_length = 2
@@ -137,9 +137,9 @@ output "bucket_url" {
   description = "gs:// URL of the bucket."
 }
 
-########################################
+################################################################################
 # Test Resource B (optional): Persistent Disk
-########################################
+################################################################################
 
 resource "google_compute_disk" "test_pd" {
   count   = var.enable_persistent_disk ? 1 : 0
