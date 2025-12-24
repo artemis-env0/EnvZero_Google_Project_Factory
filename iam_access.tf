@@ -1,44 +1,34 @@
-// ============================
-// iam_access.tf
-// ============================
-// Grants the human deployer rights to delete the resources they created:
-// Full admin on the created bucket (can delete bucket & objects)
-// If PD is enabled, Compute Storage Admin for disks/images (delete PD)
-// Also optional viewer so they can see the project in the UI.
-//
-// Uses local.effective_project_id & google_storage_bucket.one_bucket from main.tf
+# ------------------------------------------------------------
+# IAM convenience grants (optional)
+# Lets env0 runner SA manage created project (if configured)
+# Lets the human deployer see/delete what was created
+# ------------------------------------------------------------
 
-variable "deployer_user_email" {
-  type        = string
-  description = "Human deployer to grant delete rights to (i.e., some.user@domain.com). Leave empty to skip."
-  default     = ""
+# Ensure env0 SA can manage the new project (optional)
+resource "google_project_iam_member" "grant_editor_to_caller" {
+  count   = (var.caller_sa_email != null && var.caller_sa_email != "") ? 1 : 0
+  project = module.project_factory.project_id
+  role    = "roles/editor"
+  member  = "serviceAccount:${var.caller_sa_email}"
 }
 
-locals {
-  deployer_member = var.deployer_user_email != "" ? "user:${var.deployer_user_email}" : ""
+# Give the deployer broad ability to delete resources in the created project (optional)
+# NOTE: roles/editor allows deleting most resources created in the project,
+# but it does NOT grant org/folder-level ability to delete the project itself.
+resource "google_project_iam_member" "deployer_editor" {
+  count   = (var.deployer_user_email != null && var.deployer_user_email != "" && var.grant_deployer_editor) ? 1 : 0
+  project = module.project_factory.project_id
+  role    = "roles/editor"
+  member  = "user:${var.deployer_user_email}"
 }
 
-# ---- Bucket-level admin (delete bucket & objects) ----
-resource "google_storage_bucket_iam_member" "bucket_admin_deployer" {
-  count  = local.deployer_member == "" ? 0 : 1
+# Bucket-level admin for deployer (optional)
+# This is the cleanest way to allow them to delete/list/describe the bucket they created.
+resource "google_storage_bucket_iam_member" "deployer_bucket_admin" {
+  count  = (var.deployer_user_email != null && var.deployer_user_email != "" && var.grant_deployer_bucket_admin) ? 1 : 0
   bucket = google_storage_bucket.one_bucket.name
   role   = "roles/storage.admin"
-  member = local.deployer_member
-}
+  member = "user:${var.deployer_user_email}"
 
-# ---- Disk delete rights when PD is enabled ----
-# roles/compute.storageAdmin lets a user delete disks/snapshots/images.
-resource "google_project_iam_member" "compute_storage_admin_deployer" {
-  count   = local.deployer_member != "" && var.enable_persistent_disk ? 1 : 0
-  project = local.effective_project_id
-  role    = "roles/compute.storageAdmin"
-  member  = local.deployer_member
-}
-
-# (Optional) If you also want the deployer to see the project in UI:
-resource "google_project_iam_member" "viewer_deployer" {
-  count   = local.deployer_member == "" ? 0 : 1
-  project = local.effective_project_id
-  role    = "roles/viewer"
-  member  = local.deployer_member
+  depends_on = [google_storage_bucket.one_bucket]
 }
