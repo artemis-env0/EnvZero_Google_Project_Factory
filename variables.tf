@@ -11,6 +11,12 @@ variable "existing_project_id" {
   default     = ""
 }
 
+variable "project_id" {
+  description = "Project ID to create when existing_project_id is empty. Leave empty if env0 generates it via env0.auto.tfvars.json."
+  type        = string
+  default     = ""
+}
+
 variable "region" {
   description = "Default region for provider context."
   type        = string
