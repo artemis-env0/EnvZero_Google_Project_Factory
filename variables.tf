@@ -1,3 +1,7 @@
+################################################################################
+# variables.tf
+################################################################################
+
 # Provider / bootstrap
 
 variable "bootstrap_project_id" {
@@ -31,8 +35,8 @@ variable "billing_account" {
 }
 
 # Project selection (create vs adopt)
-# Set existing_project_id to ADOPT that project (skip Project Factory).
-# Otherwise we CREATE a new project with project_id (or auto-generate one).
+# - Set existing_project_id to ADOPT that project (skip Project Factory).
+# - Otherwise we CREATE a new project with project_id (or auto-generate one).
 variable "existing_project_id" {
   description = "If non-empty, adopt/manage this existing project instead of creating one."
   type        = string
@@ -46,6 +50,7 @@ variable "project_id" {
 }
 
 # Convenience / naming
+
 variable "project_name_prefix" {
   description = "Prefix for generated project IDs when project_id is empty."
   type        = string
@@ -53,6 +58,7 @@ variable "project_name_prefix" {
 }
 
 # APIs to enable
+
 variable "activate_apis" {
   description = "APIs to enable in the project."
   type        = list(string)
@@ -66,6 +72,7 @@ variable "activate_apis" {
 }
 
 # Optional: grant runner SA access
+
 variable "caller_sa_email" {
   description = "Service account email used by env0 (to grant project-level role). Leave empty to skip."
   type        = string
@@ -73,6 +80,7 @@ variable "caller_sa_email" {
 }
 
 # Bucket settings
+
 variable "bucket_location" {
   description = "Bucket region or multi-region (e.g., US, EU, us-central1)."
   type        = string
@@ -80,6 +88,7 @@ variable "bucket_location" {
 }
 
 # Persistent Disk (optional)
+
 variable "enable_persistent_disk" {
   description = "Set true to create a test persistent disk in the project."
   type        = bool
@@ -102,4 +111,12 @@ variable "disk_size_gb" {
   description = "Disk size in GB."
   type        = number
   default     = 14
+}
+
+# Deployer self-service delete access
+
+variable "deployer_user_email" {
+  description = "Human deployer to grant delete rights to (e.g., artem.artyunov@env0.com). Leave empty to skip."
+  type        = string
+  default     = ""
 }
