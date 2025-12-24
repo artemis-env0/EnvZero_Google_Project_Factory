@@ -1,5 +1,5 @@
 ################################################################################
-# main.tf — Create NEW project via GPF or ADOPT existing,
+# main.tf : Create NEW project via GPF or ADOPT existing,
 # then create a test bucket (and optional PD).
 # Uses local.effective_project_id everywhere so it works for both flows.
 ################################################################################
