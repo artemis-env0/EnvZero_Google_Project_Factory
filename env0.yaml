@@ -23,7 +23,7 @@ deploy:
             set -euo pipefail
 
             if [ -f env0.auto.tfvars.json ]; then
-              echo "env0.auto.tfvars.json already exists — not regenerating."
+              echo "env0.auto.tfvars.json already exists, not regenerating."
               cat env0.auto.tfvars.json | jq '{existing_project_id, project_id, org_id, folder_id}'
               exit 0
             fi
