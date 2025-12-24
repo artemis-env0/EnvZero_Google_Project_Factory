@@ -5,6 +5,12 @@ variable "bootstrap_project_id" {
   type        = string
 }
 
+variable "existing_project_id" {
+  description = "If set, adopt this existing GCP project ID instead of creating a new one. Leave empty to create a new project."
+  type        = string
+  default     = ""
+}
+
 variable "region" {
   description = "Default region for provider context."
   type        = string
