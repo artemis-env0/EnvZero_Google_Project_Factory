@@ -1,8 +1,7 @@
 ########################################
 # main.tf — Create NEW project via GPF or ADOPT existing,
 # then create a test bucket (and optional PD).
-# Uses local.effective_project_id everywhere so it works
-# for both create and adopt flows.
+# Uses local.effective_project_id everywhere so it works for both flows.
 ########################################
 
 # Who am I? (for debugging)
@@ -15,26 +14,17 @@ output "whoami_email" {
 
 ########################################
 # Decide: create new vs adopt existing
-# - If var.existing_project_id == ""  → CREATE new project via Project Factory
-# - If var.existing_project_id != ""  → ADOPT existing project, enable APIs directly
 ########################################
-
-# Random suffix only used when creating a new project AND no explicit project_id given.
-resource "random_id" "project" {
-  byte_length = 2
-}
 
 locals {
   creating = var.existing_project_id == ""
 
-  # When creating: use explicit project_id if provided, else prefix + random hex
-  chosen_project_id = local.creating ? (
-    var.project_id != "" ? var.project_id : "${var.project_name_prefix}-${random_id.project.hex}"
-  ) : var.existing_project_id
-
   # Parent (module expects null for the unused one)
   parent_org_id    = var.org_id    != "" ? var.org_id    : null
   parent_folder_id = var.folder_id != "" ? var.folder_id : null
+
+  # Null-safe sanitize of caller SA for IAM grant (avoid null interpolation)
+  caller_sa_sanitized = var.caller_sa_email != null ? var.caller_sa_email : ""
 }
 
 ########################################
@@ -50,8 +40,8 @@ module "project_factory" {
   org_id    = local.parent_org_id
   folder_id = local.parent_folder_id
 
-  # We supply an explicit ID; disable module randomization.
-  project_id        = local.chosen_project_id
+  # project_id is chosen in env0 pre-step to avoid collisions
+  project_id        = var.project_id
   random_project_id = false
 
   name                    = var.project_name_prefix
@@ -80,9 +70,6 @@ resource "google_project_service" "apis_existing" {
 locals {
   effective_project_id     = local.creating ? module.project_factory[0].project_id     : data.google_project.adopted[0].project_id
   effective_project_number = local.creating ? module.project_factory[0].project_number : data.google_project.adopted[0].number
-
-  # Null-safe sanitize of caller SA for IAM grant (avoid null interpolation)
-  caller_sa_sanitized = var.caller_sa_email != null ? var.caller_sa_email : ""
 }
 
 output "created_project_id" {
