@@ -1,65 +1,44 @@
+// ============================
 // iam_access.tf
-// Grants your user read access to the effective project (create or adopt)
-// and read access to the bucket. Uses local.effective_project_id so it works
-// whether we created the project (module with count = 1) or adopted it.
+// ============================
+// Grants the human deployer rights to delete the resources they created:
+// Full admin on the created bucket (can delete bucket & objects)
+// If PD is enabled, Compute Storage Admin for disks/images (delete PD)
+// Also optional viewer so they can see the project in the UI.
+//
+// Uses local.effective_project_id & google_storage_bucket.one_bucket from main.tf
 
-variable "user_viewer_email" {
+variable "deployer_user_email" {
   type        = string
-  description = "User email to grant read access in the project & bucket"
-  default     = "artem.artyunov@env0.com"
-}
-
-# OPTIONAL: if left empty, we'll use the bucket created in main.tf
-variable "bucket_name_for_iam" {
-  type        = string
-  description = "Existing GCS bucket name to grant read access to (e.g., env0-xxx-bkt-1234). If empty, use google_storage_bucket.one_bucket."
+  description = "Human deployer to grant delete rights to (i.e., some.user@domain.com). Leave empty to skip."
   default     = ""
 }
 
 locals {
-  user_member      = "user:${var.user_viewer_email}"
-  # Prefer explicit name when provided; otherwise use the bucket we create
-  iam_bucket_name  = var.bucket_name_for_iam != "" ? var.bucket_name_for_iam : google_storage_bucket.one_bucket.name
+  deployer_member = var.deployer_user_email != "" ? "user:${var.deployer_user_email}" : ""
 }
 
-# ----- Project-level read (general visibility) -----
-resource "google_project_iam_member" "viewer_me" {
+# ---- Bucket-level admin (delete bucket & objects) ----
+resource "google_storage_bucket_iam_member" "bucket_admin_deployer" {
+  count  = local.deployer_member == "" ? 0 : 1
+  bucket = google_storage_bucket.one_bucket.name
+  role   = "roles/storage.admin"
+  member = local.deployer_member
+}
+
+# ---- Disk delete rights when PD is enabled ----
+# roles/compute.storageAdmin lets a user delete disks/snapshots/images.
+resource "google_project_iam_member" "compute_storage_admin_deployer" {
+  count   = local.deployer_member != "" && var.enable_persistent_disk ? 1 : 0
+  project = local.effective_project_id
+  role    = "roles/compute.storageAdmin"
+  member  = local.deployer_member
+}
+
+# (Optional) If you also want the deployer to see the project in UI:
+resource "google_project_iam_member" "viewer_deployer" {
+  count   = local.deployer_member == "" ? 0 : 1
   project = local.effective_project_id
   role    = "roles/viewer"
-  member  = local.user_member
+  member  = local.deployer_member
 }
-
-# ----- Bucket-level read (least-privilege for Cloud Storage) -----
-# objectViewer: list/get objects
-resource "google_storage_bucket_iam_member" "bucket_object_viewer_me" {
-  bucket = local.iam_bucket_name
-  role   = "roles/storage.objectViewer"
-  member = local.user_member
-
-  # ensure bucket exists if we're using the created one
-  lifecycle {
-    ignore_changes = [bucket] # safe if you switch between explicit/created names
-  }
-}
-
-# legacyBucketReader: bucket metadata (storage.buckets.get)
-resource "google_storage_bucket_iam_member" "bucket_metadata_viewer_me" {
-  bucket = local.iam_bucket_name
-  role   = "roles/storage.legacyBucketReader"
-  member = local.user_member
-
-  lifecycle {
-    ignore_changes = [bucket]
-  }
-}
-
-/* --------------------------------------------------------------------------
-   OPTIONAL (broader, quicker access): instead of the two bucket-level roles
-   above, you can grant Storage Admin at the project level temporarily.
-
-resource "google_project_iam_member" "storage_admin_me" {
-  project = local.effective_project_id
-  role    = "roles/storage.admin"
-  member  = local.user_viewer_email
-}
---------------------------------------------------------------------------- */
