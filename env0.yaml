@@ -17,16 +17,15 @@ deploy:
               gcloud auth list --filter=status:ACTIVE --format='value(account)' || true
             fi
 
-        # IMPORTANT: write inputs ONCE per deployment (avoid plan/apply drift).
-        - name: Decide project (adopt or create) and write env0.auto.tfvars.json
+        - name: Remove any stale/bad tfvars (force fresh project_id selection)
           run: |
             set -euo pipefail
+            rm -f env0.auto.tfvars.json
+            echo "Removed env0.auto.tfvars.json to force fresh inputs for this run."
 
-            if [ -f env0.auto.tfvars.json ]; then
-              echo "env0.auto.tfvars.json already exists, not regenerating."
-              cat env0.auto.tfvars.json | jq '{existing_project_id, project_id, org_id, folder_id}'
-              exit 0
-            fi
+        - name: Resolve inputs (supports Terraform Variables or TF_VAR_*)
+          run: |
+            set -euo pipefail
 
             resolve() {
               local key="$1"
@@ -78,7 +77,7 @@ deploy:
             [ "${missing}" -ne 0 ] && exit 1
 
             # Defaults
-            RES_PROJECT_NAME_PREFIX="${RES_PROJECT_NAME_PREFIX:-env-demo}"
+            RES_PROJECT_NAME_PREFIX="${RES_PROJECT_NAME_PREFIX:-env0-demo}"
             RES_BUCKET_LOCATION="${RES_BUCKET_LOCATION:-US}"
             RES_REGION="${RES_REGION:-us-central1}"
             RES_ENABLE_PD="${RES_ENABLE_PD:-false}"
@@ -90,12 +89,11 @@ deploy:
               EPD="false"
             fi
 
-            # rand hex generator for project ID suffix
             randhex() {
               if command -v openssl >/dev/null 2>&1; then
-                openssl rand -hex 2
+                openssl rand -hex 3
               else
-                head -c2 /dev/urandom | od -An -tx1 | tr -d ' \n'
+                head -c3 /dev/urandom | od -An -tx1 | tr -d ' \n'
               fi
             }
 
@@ -119,26 +117,25 @@ deploy:
                 CANDIDATE="${RES_PROJECT_NAME_PREFIX}-$(randhex)"
               fi
 
+              # If exists OR is in a deletion state, pick a fresh ID
               if gcloud projects describe "${CANDIDATE}" --format='value(lifecycleState)' >/dev/null 2>&1; then
                 STATE="$(gcloud projects describe "${CANDIDATE}" --format='value(lifecycleState)' || true)"
-                case "${STATE}" in
-                  DELETE_REQUESTED|DELETE_IN_PROGRESS|SUSPENDED|ACTIVE|CREATE_REQUESTED)
-                    echo "Candidate ${CANDIDATE} is ${STATE}; generating a fresh project ID."
-                    FINAL_NEW_ID="${RES_PROJECT_NAME_PREFIX}-$(randhex)"
-                    ;;
-                  *)
-                    echo "Candidate ${CANDIDATE} present (state=${STATE}); generating a fresh project ID."
-                    FINAL_NEW_ID="${RES_PROJECT_NAME_PREFIX}-$(randhex)"
-                    ;;
-                esac
+                echo "Candidate ${CANDIDATE} exists (state=${STATE}); generating a fresh project_id."
+                FINAL_NEW_ID="${RES_PROJECT_NAME_PREFIX}-$(randhex)"
               else
                 FINAL_NEW_ID="${CANDIDATE}"
+              fi
+
+              # Double-check freshness (avoid extremely unlucky collisions)
+              if gcloud projects describe "${FINAL_NEW_ID}" --format='value(lifecycleState)' >/dev/null 2>&1; then
+                echo "Fresh candidate ${FINAL_NEW_ID} also exists; generating another project_id."
+                FINAL_NEW_ID="${RES_PROJECT_NAME_PREFIX}-$(randhex)"
               fi
 
               echo "Final new project_id=${FINAL_NEW_ID}"
             fi
 
-            # ---------- Write tfvars ONCE ----------
+            # ---------- Write tfvars ----------
             jq -n \
               --arg bpid "${RES_BOOTSTRAP_PROJECT_ID}" \
               --arg ba "${RES_BILLING_ACCOUNT}" \
@@ -169,7 +166,7 @@ deploy:
                 deployer_user_email: (if ($dep|length) > 0 then $dep else "" end)
               }' > env0.auto.tfvars.json
 
-            echo "Wrote env0.auto.tfvars.json (sticky for this run):"
+            echo "Wrote env0.auto.tfvars.json:"
             cat env0.auto.tfvars.json | jq '{existing_project_id, project_id, org_id, folder_id, deployer_user_email}'
 
     terraformApply:
