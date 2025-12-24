@@ -1,7 +1,3 @@
-################################################################################
-# variables.tf
-################################################################################
-
 # Provider / bootstrap
 
 variable "bootstrap_project_id" {
@@ -24,7 +20,7 @@ variable "org_id" {
 }
 
 variable "folder_id" {
-  description = "Folder ID (numeric, e.g., 621599609930). Leave empty if using org_id."
+  description = "Folder ID in the form 'folders/123456789012' (leave empty if using org_id)."
   type        = string
   default     = ""
 }
@@ -34,40 +30,25 @@ variable "billing_account" {
   type        = string
 }
 
-# Project selection (create vs adopt)
-# Set existing_project_id to ADOPT that project (skip Project Factory).
-# Otherwise we CREATE a new project with project_id (or auto-generate one).
-variable "existing_project_id" {
-  description = "If non-empty, adopt/manage this existing project instead of creating one."
-  type        = string
-  default     = ""
-}
-
-variable "project_id" {
-  description = "Exact project ID to create (only used when existing_project_id is empty). If empty, env0 pre-step generates env-demo-<hex>."
-  type        = string
-  default     = ""
-}
-
 # Convenience / naming
 
 variable "project_name_prefix" {
-  description = "Prefix for generated project IDs when project_id is empty."
+  description = "Prefix for the new project's display name."
   type        = string
-  default     = "env-demo"
+  default     = "env0-tofu-gpf"
 }
 
-# APIs to enable
+# APIs to enable in NEW project
 
 variable "activate_apis" {
-  description = "APIs to enable in the project."
+  description = "APIs to enable in the new project."
   type        = list(string)
   default = [
     "cloudresourcemanager.googleapis.com",
     "serviceusage.googleapis.com",
     "iam.googleapis.com",
     "storage.googleapis.com",
-    "compute.googleapis.com"
+    "compute.googleapis.com" # needed if you enable the persistent disk
   ]
 }
 
@@ -79,10 +60,30 @@ variable "caller_sa_email" {
   default     = ""
 }
 
+# Optional: grant the deploying human access (to view/delete what was created)
+
+variable "deployer_user_email" {
+  description = "User email to grant access in the created project/bucket (e.g., artem.artyunov@env0.com). Leave empty to skip."
+  type        = string
+  default     = ""
+}
+
+variable "grant_deployer_editor" {
+  description = "If true and deployer_user_email is set, grants roles/editor on the created project to the deployer."
+  type        = bool
+  default     = true
+}
+
+variable "grant_deployer_bucket_admin" {
+  description = "If true and deployer_user_email is set, grants bucket-level roles/storage.admin on the created bucket to the deployer."
+  type        = bool
+  default     = true
+}
+
 # Bucket settings
 
 variable "bucket_location" {
-  description = "Bucket region or multi-region (e.g., US, EU, us-central1)."
+  description = "Bucket location/region or multi-region (e.g., US, EU, us-central1)."
   type        = string
   default     = "US"
 }
@@ -90,7 +91,7 @@ variable "bucket_location" {
 # Persistent Disk (optional)
 
 variable "enable_persistent_disk" {
-  description = "Set true to create a test persistent disk in the project."
+  description = "Set true to create a test persistent disk in the new project."
   type        = bool
   default     = false
 }
@@ -111,12 +112,4 @@ variable "disk_size_gb" {
   description = "Disk size in GB."
   type        = number
   default     = 14
-}
-
-# Deployer self-service delete access
-
-variable "deployer_user_email" {
-  description = "Human deployer to grant delete rights to (e.g., artem.artyunov@env0.com). Leave empty to skip."
-  type        = string
-  default     = ""
 }
