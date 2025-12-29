@@ -1,5 +1,5 @@
 ################################################################################
-# main.tf : Create NEW project via GPF or ADOPT existing,
+# main.tf: Create NEW project via GPF or ADOPT existing,
 # then create a test bucket (and optional PD).
 # Uses local.effective_project_id everywhere so it works for both flows.
 ################################################################################
@@ -86,7 +86,8 @@ output "created_project_number" {
 # Optional: ensure env0 runner SA can manage the project
 ################################################################################
 
-resource "google_project_iam_member" "grant_editor_to_caller" {
+# NOTE: Renamed to avoid collision with iam_access.tf
+resource "google_project_iam_member" "grant_editor_to_caller_main" {
   count   = local.caller_sa_sanitized == "" ? 0 : 1
   project = local.effective_project_id
   role    = "roles/editor"

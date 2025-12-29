@@ -1,5 +1,6 @@
-# Provider / bootstrap
+# variables.tf
 
+# Provider / bootstrap
 variable "bootstrap_project_id" {
   description = "Existing project used by the google provider for auth/lookups."
   type        = string
@@ -12,7 +13,6 @@ variable "region" {
 }
 
 # Org / folder / billing
-
 variable "org_id" {
   description = "Organization ID (leave empty if using folder_id)."
   type        = string
@@ -20,7 +20,7 @@ variable "org_id" {
 }
 
 variable "folder_id" {
-  description = "Folder ID (numeric, e.g., 621599609930). Leave empty if using org_id."
+  description = "Folder ID in the form 'folders/123456789012' (leave empty if using org_id)."
   type        = string
   default     = ""
 }
@@ -30,31 +30,31 @@ variable "billing_account" {
   type        = string
 }
 
-# Project selection (create vs adopt)
-# Set existing_project_id to ADOPT that project (skip Project Factory).
-# Otherwise we CREATE a new project with project_id (or auto-generate one).
-variable "existing_project_id" {
-  description = "If non-empty, adopt/manage this existing project instead of creating one."
-  type        = string
-  default     = ""
-}
-
-variable "project_id" {
-  description = "Exact project ID to create (only used when existing_project_id is empty). If empty, env0 pre-step generates env-demo-<hex>."
-  type        = string
-  default     = ""
-}
-
 # Convenience / naming
 variable "project_name_prefix" {
-  description = "Prefix for generated project IDs when project_id is empty."
+  description = "Prefix for the new project's display name."
   type        = string
-  default     = "env-demo"
+  default     = "env0-tofu-gpf"
 }
 
-# APIs to enable
+# If set, we adopt/use an existing project instead of creating a new one
+variable "existing_project_id" {
+  description = "If non-empty, adopt this existing project and deploy test resources into it."
+  type        = string
+  default     = ""
+}
+
+# If creating a new project, this is the project_id to attempt to create.
+# (Usually filled by env0.yaml pre-step to avoid collisions)
+variable "project_id" {
+  description = "Project ID to create when existing_project_id is empty. Leave empty if env0 pre-step generates it."
+  type        = string
+  default     = ""
+}
+
+# APIs to enable in NEW project (or enable in existing when adopting)
 variable "activate_apis" {
-  description = "APIs to enable in the project."
+  description = "APIs to enable in the target project."
   type        = list(string)
   default = [
     "cloudresourcemanager.googleapis.com",
@@ -72,16 +72,23 @@ variable "caller_sa_email" {
   default     = ""
 }
 
+# NEW: grant the deployer's *user* account access (so you can see/delete what was created)
+variable "deployer_user_email" {
+  description = "User email to grant visibility and bucket admin access (e.g., artem.artyunov@env0.com). Leave empty to skip."
+  type        = string
+  default     = ""
+}
+
 # Bucket settings
 variable "bucket_location" {
-  description = "Bucket region or multi-region (e.g., US, EU, us-central1)."
+  description = "Bucket location/region or multi-region (e.g., US, EU, us-central1)."
   type        = string
   default     = "US"
 }
 
 # Persistent Disk (optional)
 variable "enable_persistent_disk" {
-  description = "Set true to create a test persistent disk in the project."
+  description = "Set true to create a test persistent disk in the target project."
   type        = bool
   default     = false
 }
