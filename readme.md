@@ -6,77 +6,110 @@
 
 Deploy using OpenTofu + Google Project Factory (GPF) + env0
 ----
-##  EnvZero | Demo Package
+## EnvZero Demo Package
 
-This repository demonstrates a minimal, **env0-driven** workflow that:
+This repository demonstrates a minimal env0-driven workflow that:
 
-- Uses **OpenTofu** to call **Google Project Factory v18**
-- **Creates a brand-new GCP project**
-- **Deploys a single test resource** (default: a **GCS bucket**) in that new project
-- *(Optional)* also creates a **Compute Persistent Disk (PD)**
-- *(Optional)* grants your env0 runner **service account** a role in the newly created project
+- Uses OpenTofu to call Google Project Factory v18
+- Creates a brand new GCP project or adopts an existing one
+- Deploys a single test resource (default is a GCS bucket) in the target project
+- Optionally creates a Compute Persistent Disk
+- Optionally grants the env0 runner service account permissions in the target project
+- Grants the deployer user access so they can see and delete what was created
 
-> You can run this in **env0** (recommended) or locally with **OpenTofu**.
+You can run this in env0 (recommended) or locally with OpenTofu.
 
 ---
 
-### Prerequisites
+## Prerequisites
 
-- A **bootstrap GCP project** for provider auth/lookups (e.g., `env0-bootstrap-...`)
-- A **service account (SA)** in the bootstrap project with a **JSON key** (store in env0 as `GOOGLE_CREDENTIALS`)
-- Core APIs **enabled once** in the **bootstrap** project:
+- A bootstrap GCP project for provider auth and lookups
+- A service account in the bootstrap project with a JSON key
+- The JSON key stored in env0 as `GOOGLE_CREDENTIALS`
+- Core APIs enabled once in the bootstrap project:
   - `cloudresourcemanager.googleapis.com`
   - `serviceusage.googleapis.com`
   - `iam.googleapis.com`
   - `cloudbilling.googleapis.com`
-- The SA should ultimately have:
-  - On **Org** or **Folder** scope (choose one):  
-    `roles/resourcemanager.projectCreator`, `roles/serviceusage.serviceUsageAdmin`, `roles/iam.serviceAccountAdmin`, and a viewer role for that scope (`organizationViewer` or `folderViewer`)
-  - On **Billing Account**: `roles/billing.user`
-  - On **Bootstrap Project** (only if you want TF to manage bootstrap services): `roles/serviceusage.serviceUsageAdmin` + `roles/viewer`
 
-> You can wire up env0 and run **Plan** today; **Apply** will succeed once those grants are in place.
+### Required permissions for the runner service account
 
----
+On Org or Folder scope (choose one):
 
-### What this deploys
+- `roles/resourcemanager.projectCreator`
+- `roles/serviceusage.serviceUsageAdmin`
+- `roles/iam.serviceAccountAdmin`
+- Viewer role for that scope (`roles/resourcemanager.organizationViewer` or `roles/resourcemanager.folderViewer`)
 
-- **New GCP project** via `terraform-google-modules/project-factory/google` (v18)
-- **One GCS bucket** in that new project
-- *(Optional)* **Compute Persistent Disk** (zonal)
-- *(Optional)* Project-level IAM for the env0 runner SA (e.g., `roles/editor`)
+On Billing Account:
 
----
+- `roles/billing.user`
 
-### Quick Start (env0)
+On Bootstrap Project (only if Terraform manages bootstrap APIs):
 
-1. **Connect this repo** to an env0 **Project** → create a new **Environment**.
-2. In env0 **Environment Variables**:
-   - **Secret**  
-     - `GOOGLE_CREDENTIALS` → paste your SA JSON
-   - **Plain**  
-     - `ENV0_OPENTOFU_VERSION = 1.7.0`
-     - `TF_VAR_bootstrap_project_id = <your-bootstrap-project-id>`
-     - `TF_VAR_billing_account = 000000-000000-000000`
-     - **Exactly one** of:
-       - `TF_VAR_org_id = 123456789012` **(leave `TF_VAR_folder_id` empty)**, **or**
-       - `TF_VAR_folder_id = folders/123456789012` **(leave `TF_VAR_org_id` empty)**
-     - *(Optional)* `TF_VAR_project_name_prefix = env0-tofu-gpf`
-     - *(Optional)* `TF_VAR_bucket_location = US`
-     - *(Optional)* `TF_VAR_region = us-central1`
-     - *(Optional)* `TF_VAR_enable_persistent_disk = false|true`
-     - *(Optional)* `TF_VAR_disk_zone = us-central1-a`
-     - *(Optional)* `TF_VAR_disk_type = pd-standard`
-     - *(Optional)* `TF_VAR_disk_size_gb = 10`
-     - *(Optional, recommended)* `TF_VAR_caller_sa_email = <the same SA email from GOOGLE_CREDENTIALS>`
-3. Click **Plan**, then **Apply**.  
-   The pipeline prints the caller SA email, validates required inputs, and shows outputs after apply.
+- `roles/serviceusage.serviceUsageAdmin`
+- `roles/viewer`
 
 ---
 
-### Files to Copy
+## What this deploys
 
-#### `env0.yaml`
+- A GCP project via `terraform-google-modules/project-factory/google` v18 (create flow) or adoption of an existing project (adopt flow)
+- One GCS bucket in the target project
+- Optional Compute Persistent Disk
+- IAM bindings so the deployer can see the project in the Console and delete the bucket resources
+
+---
+
+## Project creation and adoption logic
+
+The deployment follows this logic:
+
+- If `existing_project_id` is set, the deployment adopts that project and creates resources in it
+- If `existing_project_id` is empty, the deployment creates a new project using Project Factory
+- In env0, inputs are validated and a consistent `env0.auto.tfvars.json` is generated before plan so plan and apply use identical values
+
+---
+
+## Quick start with env0
+
+1. Connect this repo to an env0 Project and create a new Environment.
+2. Configure env0 Environment Variables.
+
+### Secrets
+
+- `GOOGLE_CREDENTIALS` : Paste the service account JSON
+
+### Plain variables
+
+- `ENV0_OPENTOFU_VERSION = 1.7.0`
+- `TF_VAR_bootstrap_project_id = <your-bootstrap-project-id>`
+- `TF_VAR_billing_account = 000000-000000-000000`
+- Exactly one of:
+  - `TF_VAR_org_id = 123456789012`
+  - `TF_VAR_folder_id = folders/123456789012`
+- Optional:
+  - `TF_VAR_project_name_prefix = env0-demo`
+  - `TF_VAR_bucket_location = US`
+  - `TF_VAR_region = us-central1`
+  - `TF_VAR_enable_persistent_disk = false` or `true`
+  - `TF_VAR_disk_zone = us-central1-a`
+  - `TF_VAR_disk_type = pd-standard`
+  - `TF_VAR_disk_size_gb = 10`
+  - `TF_VAR_caller_sa_email = <runner SA email>`
+  - `TF_VAR_deployer_user_email = <your.user@company.com>`
+  - `TF_VAR_existing_project_id = <project-id-to-adopt>` (only when reusing an existing project)
+
+3. Click Plan, then Apply.
+
+---
+
+## Repository file examples
+
+This section includes full examples of every file used by this repo.
+
+### env0.yaml
+
 ```yaml
 version: 2
 shell: bash
@@ -87,58 +120,134 @@ deploy:
       after:
         - name: Print tool versions
           run: |
+            set -euo pipefail
             echo "=== Tool versions ==="
             tofu version || true
             jq --version || true
             echo "ENV0_OPENTOFU_VERSION=${ENV0_OPENTOFU_VERSION:-unset}"
 
-        - name: Show caller SA email from GOOGLE_CREDENTIALS
+        - name: Who is authenticated
           run: |
-            if [ -z "${GOOGLE_CREDENTIALS}" ]; then
-              echo "GOOGLE_CREDENTIALS is empty or not set!" 1>&2
-              exit 1
+            set -euo pipefail
+            echo "=== Authenticated principal ==="
+            if [ -n "${GOOGLE_CREDENTIALS-}" ]; then
+              echo "$GOOGLE_CREDENTIALS" | jq -r '.client_email'
+            elif [ -n "${GOOGLE_APPLICATION_CREDENTIALS-}" ] && [ -f "$GOOGLE_APPLICATION_CREDENTIALS" ]; then
+              jq -r '.client_email' "$GOOGLE_APPLICATION_CREDENTIALS"
+            else
+              gcloud auth list --filter=status:ACTIVE --format='value(account)' || true
             fi
-            SA_EMAIL="$(echo "$GOOGLE_CREDENTIALS" | jq -r '.client_email')"
-            if [ -z "$SA_EMAIL" ] || [ "$SA_EMAIL" = "null" ]; then
-              echo "Could not parse client_email from GOOGLE_CREDENTIALS" 1>&2
-              exit 1
-            fi
-            echo "Caller SA email: $SA_EMAIL"
 
-        - name: Echo key Terraform vars
+        - name: Remove any stale tfvars
           run: |
-            echo "bootstrap_project_id=${TF_VAR_bootstrap_project_id:-unset}"
-            echo "billing_account=${TF_VAR_billing_account:-unset}"
-            echo "org_id=${TF_VAR_org_id:-<empty>}"
-            echo "folder_id=${TF_VAR_folder_id:-<empty>}"
-            echo "project_name_prefix=${TF_VAR_project_name_prefix:-unset}"
-            echo "bucket_location=${TF_VAR_bucket_location:-unset}"
-            echo "region=${TF_VAR_region:-unset}"
-            echo "enable_persistent_disk=${TF_VAR_enable_persistent_disk:-unset}"
-            echo "disk_zone=${TF_VAR_disk_zone:-unset}"
+            rm -f env0.auto.tfvars.json
+            echo "Removed stale env0.auto.tfvars.json (if existed)."
 
-        - name: Validate required inputs
+        - name: Resolve inputs and write env0.auto.tfvars.json
           run: |
-            REQUIRED=( TF_VAR_bootstrap_project_id TF_VAR_billing_account )
-            ONE_OF=( TF_VAR_org_id TF_VAR_folder_id )
+            set -euo pipefail
+
+            resolve() {
+              local key="$1"
+              local tfvar="TF_VAR_${key}"
+              if [ -n "${!tfvar-}" ]; then
+                echo "${!tfvar}"
+              elif [ -n "${!key-}" ]; then
+                echo "${!key}"
+              else
+                echo ""
+              fi
+            }
+
+            RES_BOOTSTRAP_PROJECT_ID="$(resolve bootstrap_project_id)"
+            RES_BILLING_ACCOUNT="$(resolve billing_account)"
+            RES_ORG_ID="$(resolve org_id)"
+            RES_FOLDER_ID="$(resolve folder_id)"
+            RES_PROJECT_NAME_PREFIX="$(resolve project_name_prefix)"
+            RES_BUCKET_LOCATION="$(resolve bucket_location)"
+            RES_REGION="$(resolve region)"
+            RES_ENABLE_PD="$(resolve enable_persistent_disk)"
+            RES_DISK_ZONE="$(resolve disk_zone)"
+            RES_DISK_TYPE="$(resolve disk_type)"
+            RES_DISK_SIZE_GB="$(resolve disk_size_gb)"
+            RES_CALLER_SA_EMAIL="$(resolve caller_sa_email)"
+            RES_DEPLOYER_USER_EMAIL="$(resolve deployer_user_email)"
+            RES_EXISTING_PROJECT_ID="$(resolve existing_project_id)"
+
+            echo "bootstrap_project_id=${RES_BOOTSTRAP_PROJECT_ID:-<missing>}"
+            echo "billing_account=${RES_BILLING_ACCOUNT:-<missing>}"
+            echo "org_id=${RES_ORG_ID:-<empty>}"
+            echo "folder_id=${RES_FOLDER_ID:-<empty>}"
+            echo "existing_project_id=${RES_EXISTING_PROJECT_ID:-<empty>}"
+            echo "deployer_user_email=${RES_DEPLOYER_USER_EMAIL:-<empty>}"
+
             missing=0
+            [ -z "${RES_BOOTSTRAP_PROJECT_ID}" ] && echo "Missing required variable: bootstrap_project_id" >&2 && missing=1
+            [ -z "${RES_BILLING_ACCOUNT}" ] && echo "Missing required variable: billing_account" >&2 && missing=1
 
-            for v in "${REQUIRED[@]}"; do
-              if [ -z "${!v}" ]; then echo "Missing required variable: $v" 1>&2; missing=1; fi
-            done
-
-            count_one_of=0
-            for v in "${ONE_OF[@]}"; do
-              [ -n "${!v}" ] && count_one_of=$((count_one_of+1))
-            done
-            if [ "$count_one_of" -ne 1 ]; then
-              echo "Exactly one of TF_VAR_org_id or TF_VAR_folder_id must be set (not both / not none)." 1>&2
-              missing=1
+            # If we are creating a project, require exactly one of org_id or folder_id.
+            if [ -z "${RES_EXISTING_PROJECT_ID}" ]; then
+              count=0
+              [ -n "${RES_ORG_ID}" ] && count=$((count+1))
+              [ -n "${RES_FOLDER_ID}" ] && count=$((count+1))
+              if [ "${count}" -ne 1 ]; then
+                echo "Exactly one of org_id or folder_id must be set when existing_project_id is empty." >&2
+                missing=1
+              fi
             fi
 
-            if [ "$missing" -ne 0 ]; then
+            if [ "${missing}" -ne 0 ]; then
               exit 1
             fi
+
+            # Safe defaults
+            RES_PROJECT_NAME_PREFIX="${RES_PROJECT_NAME_PREFIX:-env0-demo}"
+            RES_BUCKET_LOCATION="${RES_BUCKET_LOCATION:-US}"
+            RES_REGION="${RES_REGION:-us-central1}"
+            RES_ENABLE_PD="${RES_ENABLE_PD:-false}"
+            RES_DISK_ZONE="${RES_DISK_ZONE:-us-central1-a}"
+            RES_DISK_TYPE="${RES_DISK_TYPE:-pd-standard}"
+            RES_DISK_SIZE_GB="${RES_DISK_SIZE_GB:-10}"
+
+            # Normalize boolean for jq
+            EPD="$(echo "${RES_ENABLE_PD}" | tr '[:upper:]' '[:lower:]')"
+            if [ "${EPD}" != "true" ] && [ "${EPD}" != "false" ]; then
+              EPD="false"
+            fi
+
+            jq -n \
+              --arg bpid "${RES_BOOTSTRAP_PROJECT_ID}" \
+              --arg ba "${RES_BILLING_ACCOUNT}" \
+              --arg oid "${RES_ORG_ID}" \
+              --arg fid "${RES_FOLDER_ID}" \
+              --arg pfx "${RES_PROJECT_NAME_PREFIX}" \
+              --arg loc "${RES_BUCKET_LOCATION}" \
+              --arg reg "${RES_REGION}" \
+              --arg dz "${RES_DISK_ZONE}" \
+              --arg dt "${RES_DISK_TYPE}" \
+              --arg dsz "${RES_DISK_SIZE_GB}" \
+              --arg csa "${RES_CALLER_SA_EMAIL}" \
+              --arg due "${RES_DEPLOYER_USER_EMAIL}" \
+              --arg eprj "${RES_EXISTING_PROJECT_ID}" \
+              --argjson epd "${EPD}" \
+              '{
+                bootstrap_project_id: $bpid,
+                billing_account: $ba,
+                org_id: (if ($oid|length) > 0 then $oid else "" end),
+                folder_id: (if ($fid|length) > 0 then $fid else "" end),
+                project_name_prefix: $pfx,
+                bucket_location: $loc,
+                region: $reg,
+                enable_persistent_disk: $epd,
+                disk_zone: $dz,
+                disk_type: $dt,
+                disk_size_gb: ($dsz|tonumber),
+                caller_sa_email: (if ($csa|length) > 0 then $csa else "" end),
+                deployer_user_email: (if ($due|length) > 0 then $due else "" end),
+                existing_project_id: (if ($eprj|length) > 0 then $eprj else "" end)
+              }' > env0.auto.tfvars.json
+
+            echo "Wrote env0.auto.tfvars.json"
 
     terraformApply:
       after:
@@ -147,10 +256,10 @@ deploy:
             echo "=== OpenTofu outputs (JSON) ==="
             tofu output -json || true
 ```
-----
 
-#### 'Providers.tf'
-````hcl
+### providers.tf
+
+```hcl
 terraform {
   required_version = ">= 1.3.0"
 
@@ -171,13 +280,14 @@ provider "google" {
   project = var.bootstrap_project_id
   region  = var.region
 }
-````
-----
+```
 
-#### 'Variables.tf'
-````hcl
+### variables.tf
 
+```hcl
+################################################################################
 # Provider / bootstrap
+################################################################################
 
 variable "bootstrap_project_id" {
   description = "Existing project used by the google provider for auth/lookups."
@@ -190,8 +300,9 @@ variable "region" {
   default     = "us-central1"
 }
 
-
+################################################################################
 # Org / folder / billing
+################################################################################
 
 variable "org_id" {
   description = "Organization ID (leave empty if using folder_id)."
@@ -210,32 +321,53 @@ variable "billing_account" {
   type        = string
 }
 
+################################################################################
+# Create vs adopt controls
+################################################################################
 
+variable "existing_project_id" {
+  description = "If non-empty, adopt this existing project and deploy resources into it."
+  type        = string
+  default     = ""
+}
+
+# Only used for the create flow when existing_project_id is empty.
+# If you leave this empty, Project Factory can randomize the project id when random_project_id is true.
+variable "project_id" {
+  description = "Project ID to create when existing_project_id is empty. Leave empty to let Project Factory generate."
+  type        = string
+  default     = ""
+}
+
+################################################################################
 # Convenience / naming
+################################################################################
 
 variable "project_name_prefix" {
   description = "Prefix for the new project's display name."
   type        = string
-  default     = "env0-tofu-gpf"
+  default     = "env0-demo"
 }
 
-
-# APIs to enable in NEW project
+################################################################################
+# APIs to enable in the target project
+################################################################################
 
 variable "activate_apis" {
-  description = "APIs to enable in the new project."
+  description = "APIs to enable in the target project."
   type        = list(string)
   default = [
     "cloudresourcemanager.googleapis.com",
     "serviceusage.googleapis.com",
     "iam.googleapis.com",
     "storage.googleapis.com",
-    "compute.googleapis.com" # needed if you enable the persistent disk
+    "compute.googleapis.com"
   ]
 }
 
-
+################################################################################
 # Optional: grant runner SA access
+################################################################################
 
 variable "caller_sa_email" {
   description = "Service account email used by env0 (to grant project-level role). Leave empty to skip."
@@ -243,8 +375,19 @@ variable "caller_sa_email" {
   default     = ""
 }
 
+################################################################################
+# Optional: grant deployer user access so resources are visible and deletable
+################################################################################
 
+variable "deployer_user_email" {
+  description = "User email to grant viewer on project and storage admin on bucket. Leave empty to skip."
+  type        = string
+  default     = ""
+}
+
+################################################################################
 # Bucket settings
+################################################################################
 
 variable "bucket_location" {
   description = "Bucket location/region or multi-region (e.g., US, EU, us-central1)."
@@ -252,17 +395,18 @@ variable "bucket_location" {
   default     = "US"
 }
 
-
+################################################################################
 # Persistent Disk (optional)
+################################################################################
 
 variable "enable_persistent_disk" {
-  description = "Set true to create a test persistent disk in the new project."
+  description = "Set true to create a test persistent disk in the target project."
   type        = bool
   default     = false
 }
 
 variable "disk_zone" {
-  description = "Zone for the test persistent disk (must match your region family)."
+  description = "Zone for the test persistent disk."
   type        = string
   default     = "us-central1-a"
 }
@@ -278,15 +422,18 @@ variable "disk_size_gb" {
   type        = number
   default     = 10
 }
-````
-----
+```
 
-#### 'Main.tf'
-````hcl
+### main.tf
 
-# Sanity: who am I?
+```hcl
+################################################################################
+# main.tf: Create NEW project via GPF or ADOPT existing,
+# then create a test bucket (and optional PD).
+# Uses local.effective_project_id everywhere so it works for both flows.
+################################################################################
 
-
+# Who am I? (for debugging)
 data "google_client_openid_userinfo" "me" {}
 
 output "whoami_email" {
@@ -294,74 +441,111 @@ output "whoami_email" {
   description = "Authenticated principal email from GOOGLE_CREDENTIALS."
 }
 
+################################################################################
+# Decide: create new vs adopt existing
+################################################################################
 
-# Create a NEW project via Project Factory v18
+locals {
+  creating = var.existing_project_id == ""
 
+  # Parent (module expects null for the unused one)
+  parent_org_id    = var.org_id    != "" ? var.org_id    : null
+  parent_folder_id = var.folder_id != "" ? var.folder_id : null
 
+  # Null-safe sanitize of caller SA for IAM grant (avoid null interpolation)
+  caller_sa_sanitized = var.caller_sa_email != null ? var.caller_sa_email : ""
+}
+
+################################################################################
+# Create (Project Factory) OR Adopt (data source)
+################################################################################
+
+# If creating, call the Project Factory module.
 module "project_factory" {
+  count   = local.creating ? 1 : 0
   source  = "terraform-google-modules/project-factory/google"
   version = "~> 18.0"
 
-  # choose exactly one: org_id or folder_id (the other stays null)
-  org_id    = var.org_id != "" ? var.org_id : null
-  folder_id = var.folder_id != "" ? var.folder_id : null
+  org_id    = local.parent_org_id
+  folder_id = local.parent_folder_id
 
-  name              = var.project_name_prefix
-  billing_account   = var.billing_account
-  random_project_id = true
+  # If project_id is empty, let Project Factory randomize it (random_project_id = true).
+  project_id        = var.project_id != "" ? var.project_id : null
+  random_project_id = var.project_id == "" ? true : false
 
-  # enable APIs in the NEW project (for our test resources)
-  activate_apis = var.activate_apis
-
-  # safer default SA posture
+  name                    = var.project_name_prefix
+  billing_account         = var.billing_account
+  activate_apis           = var.activate_apis
   default_service_account = "deprivilege"
 }
 
+# If adopting, look up the existing project and enable APIs ourselves.
+data "google_project" "adopted" {
+  count      = local.creating ? 0 : 1
+  project_id = var.existing_project_id
+}
+
+resource "google_project_service" "apis_existing" {
+  count              = local.creating ? 0 : length(var.activate_apis)
+  project            = data.google_project.adopted[0].project_id
+  service            = var.activate_apis[count.index]
+  disable_on_destroy = true
+}
+
+################################################################################
+# Effective project reference (works for both paths)
+################################################################################
+
+locals {
+  effective_project_id     = local.creating ? module.project_factory[0].project_id     : data.google_project.adopted[0].project_id
+  effective_project_number = local.creating ? module.project_factory[0].project_number : data.google_project.adopted[0].number
+}
+
 output "created_project_id" {
-  value       = module.project_factory.project_id
-  description = "ID of the newly created project."
+  value       = local.effective_project_id
+  description = "ID of the created or adopted project."
 }
 
 output "created_project_number" {
-  value       = module.project_factory.project_number
-  description = "Number of the newly created project."
+  value       = local.effective_project_number
+  description = "Number of the created or adopted project."
 }
 
-
-# Optional: ensure env0 SA can manage the new project
-
+################################################################################
+# Optional: ensure env0 runner SA can manage the project
+################################################################################
 
 resource "google_project_iam_member" "grant_editor_to_caller" {
-  count   = var.caller_sa_email == "" ? 0 : 1
-  project = module.project_factory.project_id
-  role    = "roles/editor" # tighten to specific roles if you prefer
-  member  = "serviceAccount:${var.caller_sa_email}"
+  count   = local.caller_sa_sanitized == "" ? 0 : 1
+  project = local.effective_project_id
+  role    = "roles/editor"
+  member  = "serviceAccount:${local.caller_sa_sanitized}"
 }
 
-
-# Test Resource A: One GCS bucket in NEW project
-
+################################################################################
+# Test Resource A: One GCS bucket in the project
+################################################################################
 
 resource "random_id" "suffix" {
   byte_length = 2
 }
 
 resource "google_storage_bucket" "one_bucket" {
-  name                        = "${module.project_factory.project_id}-bkt-${random_id.suffix.hex}"
-  project                     = module.project_factory.project_id
+  name                        = "${local.effective_project_id}-bkt-${random_id.suffix.hex}"
+  project                     = local.effective_project_id
   location                    = var.bucket_location
   uniform_bucket_level_access = true
   force_destroy               = true
 
   lifecycle_rule {
-    action { type = "Delete" }
+    action    { type = "Delete" }
     condition { age = 30 }
   }
 }
 
 output "bucket_name" {
   value       = google_storage_bucket.one_bucket.name
-  description = "Name of the bucket created in the new project."
+  description = "Name of the bucket created in the project."
 }
 
 output "bucket_url" {
@@ -369,14 +553,14 @@ output "bucket_url" {
   description = "gs:// URL of the bucket."
 }
 
-
+################################################################################
 # Test Resource B (optional): Persistent Disk
-
+################################################################################
 
 resource "google_compute_disk" "test_pd" {
   count   = var.enable_persistent_disk ? 1 : 0
-  name    = "${module.project_factory.project_id}-pd-${var.disk_size_gb}g"
-  project = module.project_factory.project_id
+  name    = "${local.effective_project_id}-pd-${var.disk_size_gb}g"
+  project = local.effective_project_id
   zone    = var.disk_zone
   type    = var.disk_type
   size    = var.disk_size_gb
@@ -386,18 +570,44 @@ output "test_pd_self_link" {
   value       = try(google_compute_disk.test_pd[0].self_link, null)
   description = "Self link for the test persistent disk (only when enabled)."
 }
-````
-----
+```
 
-#### 'Outputs.tf'
-````hcl
-# (Left intentionally empty : outputs are defined in main.tf) > artem@env0 was here
+### iam_access.tf
 
-````
-----
+```hcl
+################################################################################
+# iam_access.tf
+# Grants the deployer (human) visibility plus bucket admin so they can verify
+# and delete resources created by env0.
+################################################################################
 
-#### '.gitignore'
-````gitignore
+resource "google_project_iam_member" "deployer_viewer" {
+  count   = var.deployer_user_email != "" ? 1 : 0
+  project = local.effective_project_id
+  role    = "roles/viewer"
+  member  = "user:${var.deployer_user_email}"
+}
+
+resource "google_storage_bucket_iam_member" "deployer_bucket_admin" {
+  count  = var.deployer_user_email != "" ? 1 : 0
+  bucket = google_storage_bucket.one_bucket.name
+  role   = "roles/storage.admin"
+  member = "user:${var.deployer_user_email}"
+
+  depends_on = [google_storage_bucket.one_bucket]
+}
+```
+
+### outputs.tf
+
+```hcl
+# Intentionally empty.
+# Outputs are defined in main.tf.
+```
+
+### .gitignore
+
+```gitignore
 # OpenTofu/Terraform local files
 .terraform/
 .terraform.lock.hcl
@@ -413,13 +623,15 @@ override.tf.json
 *.json
 *.pem
 *.p12
-````
-----
+```
 
-### Debugging 
-#### Running this locally
+---
 
-````bash
+## Debugging
+
+### Running locally
+
+```bash
 # 1) Set credentials (same SA used in env0)
 export GOOGLE_CREDENTIALS="$(cat ./env0-gpf-admin.json)"
 # or export GOOGLE_APPLICATION_CREDENTIALS=/path/to/key.json
@@ -433,112 +645,87 @@ tofu apply
 
 # 4) See outputs
 tofu output
-
-````
-----
-
-# README : Outputs, Troubleshooting, and Useful Commands
-
-This document summarizes the key **outputs**, **common errors & fixes**, and a few **utility commands** for the env0 + OpenTofu + Google Project Factory deployment.
+```
 
 ---
 
-### Outputs
+## Outputs
 
-- **whoami_email** : the authenticated principal (from `GOOGLE_CREDENTIALS`)
-- **created_project_id** : ID of the newly created project
-- **created_project_number** : number of the newly created project
-- **bucket_name** : created bucket name
-- **bucket_url** : `gs://…`
-- **test_pd_self_link** : self link of optional Persistent Disk (null if disabled)
+- `whoami_email` : authenticated principal email
+- `created_project_id` : ID of the created or adopted project
+- `created_project_number` : numeric project ID
+- `bucket_name` : created bucket name
+- `bucket_url` : gs:// URL of the bucket
+- `test_pd_self_link` : self link of optional Persistent Disk
 
 ---
 
-### Common Errors & Fixes
+## Common errors and fixes
 
-#### `SERVICE_DISABLED: Cloud Billing API has not been used in project …`
-Enable **Cloud Billing API** (and other core APIs) **in the bootstrap project**:
+### Cloud Billing API disabled
+
+Enable Cloud Billing API in the bootstrap project:
 
 ```bash
-gcloud services enable cloudbilling.googleapis.com \
-  --project "<bootstrap-project-id>"
+gcloud services enable cloudbilling.googleapis.com --project <bootstrap-project-id>
 ```
-----
 
-# Troubleshooting & Quick Commands : env0 + OpenTofu + Google Project Factory
+### AUTH_PERMISSION_DENIED from serviceusage.googleapis.com
 
-This README captures concise fixes and commands for common permission-related issues, plus quick validation steps.
+Cause: The runner service account cannot list or enable services on the project it targets.
 
----
+Fix: Grant the runner service account on the bootstrap project or relevant scope:
 
-### Error: `AUTH_PERMISSION_DENIED` from `serviceusage.googleapis.com`
+```bash
+gcloud projects add-iam-policy-binding "<bootstrap-project-id>" \
+  --member="serviceAccount:<sa-email>" \
+  --role="roles/serviceusage.serviceUsageAdmin"
 
-**Cause:**  
-The runner Service Account (SA) cannot list/enable services on the project it targets. For **bootstrap** API management, grant:
+gcloud projects add-iam-policy-binding "<bootstrap-project-id>" \
+  --member="serviceAccount:<sa-email>" \
+  --role="roles/viewer"
+```
 
-- `roles/serviceusage.serviceUsageAdmin`
-- `roles/viewer`
+Alternative: Remove bootstrap API management from Terraform and enable those APIs once manually.
 
-**Commands (replace placeholders):**
+### Project creation or billing link denied
 
-    gcloud projects add-iam-policy-binding "<bootstrap-project-id>" \
-      --member="serviceAccount:<sa-email>" \
-      --role="roles/serviceusage.serviceUsageAdmin"
+Fix: Ensure the runner service account has:
 
-    gcloud projects add-iam-policy-binding "<bootstrap-project-id>" \
-      --member="serviceAccount:<sa-email>" \
-      --role="roles/viewer"
-
-**Alternative:**  
-Remove bootstrap API management from Terraform and enable those APIs **once** manually.
-
----
-
-### Error: Project creation / billing link denied
-
-**Fix:** Grant the runner SA these roles:
-
-- **On Org/Folder**  
-  - `roles/resourcemanager.projectCreator`  
-  - `roles/serviceusage.serviceUsageAdmin`  
-  - `roles/iam.serviceAccountAdmin`  
-  - A viewer role for that scope (`roles/resourcemanager.organizationViewer` or `roles/resourcemanager.folderViewer`)
-- **On Billing account**  
+- On Org or Folder scope:
+  - `roles/resourcemanager.projectCreator`
+  - `roles/serviceusage.serviceUsageAdmin`
+  - `roles/iam.serviceAccountAdmin`
+  - Viewer role for the scope
+- On Billing Account:
   - `roles/billing.user`
 
----
+### Project or bucket not visible in GCP Console
 
-### Double-check which SA env0 is using
+Cause: Your user account does not have viewer permissions on the created project.
 
-Add this step to your `env0.yaml` to print the caller SA email at runtime:
-
-    - name: Show caller SA email
-      run: echo "$GOOGLE_CREDENTIALS" | jq -r '.client_email'
+Fix: Set `TF_VAR_deployer_user_email` so the deployment grants you access automatically.
 
 ---
 
-### Example: Query the Bucket After Deploy
+## Cleanup
 
-    # Replace with the output value
-    BUCKET="<created-bucket-name>"
-    gsutil ls "gs://${BUCKET}"
+From env0, click Destroy on the environment.
 
----
-
-### Cleanup
-
-From **env0**, click **Destroy** on the environment.  
-This removes the bucket, optional PD, and the newly created project (via Project Factory).
+This removes the bucket, optional Persistent Disk, and deletes the project if it was created by the deployment.
 
 ---
 
-### FAQ
+## FAQ
 
-**Q: Can I use OpenTofu with the upstream Terraform modules?**  
-**A:** Yes. Google Project Factory v18 is tested with Terraform 1.10+ and works with OpenTofu in practice. Pin the **Google provider `~> 7.0`**.
+### Can I use OpenTofu with upstream Terraform modules?
+Yes. Google Project Factory v18 works with OpenTofu in practice. Pin the Google provider to version `~> 7.0`.
 
-**Q: Do I need `org_id`?**  
-**A:** No. You can use **`folder_id`** if your org delegates via folders.
+### Do I need org_id?
+No. You can use folder_id instead if your organization delegates project creation via folders.
 
-**Q: Where do I get `caller_sa_email`?**  
-**A:** It’s the `client_email` in your `GOOGLE_CREDENTIALS` JSON (the same SA the pipeline uses).
+### Where do I get caller_sa_email?
+It is the `client_email` field in the `GOOGLE_CREDENTIALS` JSON.
+
+### Where do I find created resources if I cannot see them?
+Ensure `TF_VAR_deployer_user_email` is set so the deployment grants you viewer and bucket admin access.
