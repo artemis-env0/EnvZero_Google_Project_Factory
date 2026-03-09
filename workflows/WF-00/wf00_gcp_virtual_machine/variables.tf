@@ -60,3 +60,9 @@ variable "enable_public_ip" {
   type        = bool
   default     = false
 }
+
+variable "vm_name_suffix" {
+  description = "Optional unique suffix for this VM environment, for example 00, 01, or 02."
+  type        = string
+  default     = ""
+}
