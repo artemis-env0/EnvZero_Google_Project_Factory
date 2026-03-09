@@ -5,6 +5,8 @@ settings:
   # destroy would automatically destroy removed sub.environments on the next workflow deploy
   environmentRemovalStrategy: detach
 
+# Artem Simulation Build - GPF Project
+
 environments:
   wf00-project:
     name: WF-00 GCP Project
@@ -12,6 +14,8 @@ environments:
     revision: v.1.1.1
     workspace: wf00-gcp-project
     requiresApproval: false
+    
+# Artem Simulation Build - GPF Network
 
   wf00-network:
     name: WF-00 GCP Network
@@ -21,6 +25,8 @@ environments:
     requiresApproval: false
     needs:
       - wf00-project
+      
+# Artem Simulation Build - GPF Bucket
 
   wf00-bucket:
     name: WF-00 GCP Bucket
@@ -31,8 +37,10 @@ environments:
     needs:
       - wf00-project
 
-  wf00-virtual-machine:
-    name: WF-00 GCP Virtual Machine
+# Artem Simulation Build - GPF Virtual Machine 00 w/ PersistentDisks
+
+  wf00-virtual-machine-00:
+    name: WF-00 GCP Virtual Machine VM00
     templateName: artem_simulation_gcp_virtual_machine
     revision: v.1.1.1
     workspace: wf00-gcp-virtual-machine
@@ -40,14 +48,81 @@ environments:
     needs:
       - wf00-network
 
-  wf00-persistent-disk:
-    name: WF-00 GCP Persistent Disk
+  wf00-persistent-disk-00:
+    name: WF-00 GCP Persistent Disk PD00
     templateName: artem_simulation_gcp_persistent_disk
     revision: v.1.1.1
     workspace: wf00-gcp-persistent-disk
     requiresApproval: false
     needs:
-      - wf00-virtual-machine
+      - wf00-virtual-machine-00
+      
+  wf00-persistent-disk-01:
+    name: WF-00 GCP Persistent Disk PD01
+    templateName: artem_simulation_gcp_persistent_disk
+    revision: v.1.1.1
+    workspace: wf00-gcp-persistent-disk
+    requiresApproval: false
+    needs:
+      - wf00-virtual-machine-00
+
+# Artem Simulation Build - GPF Virtual Machine 01 w/ PersistentDisks
+
+  wf00-virtual-machine-01:
+    name: WF-00 GCP Virtual Machine VM01
+    templateName: artem_simulation_gcp_virtual_machine
+    revision: v.1.1.1
+    workspace: wf00-gcp-virtual-machine
+    requiresApproval: false
+    needs:
+      - wf00-network
+
+  wf00-persistent-disk-02:
+    name: WF-00 GCP Persistent Disk PD02
+    templateName: artem_simulation_gcp_persistent_disk
+    revision: v.1.1.1
+    workspace: wf00-gcp-persistent-disk
+    requiresApproval: false
+    needs:
+      - wf01-virtual-machine-01
+      
+  wf00-persistent-disk-03:
+    name: WF-00 GCP Persistent Disk PD03
+    templateName: artem_simulation_gcp_persistent_disk
+    revision: v.1.1.1
+    workspace: wf00-gcp-persistent-disk
+    requiresApproval: false
+    needs:
+      - wf01-virtual-machine-01
+
+# Artem Simulation Build - GPF Virtual Machine 02 w/ PersistentDisks
+
+  wf00-virtual-machine-02:
+    name: WF-00 GCP Virtual Machine VM02
+    templateName: artem_simulation_gcp_virtual_machine
+    revision: v.1.1.1
+    workspace: wf00-gcp-virtual-machine
+    requiresApproval: false
+    needs:
+      - wf00-network
+
+  wf00-persistent-disk-04:
+    name: WF-00 GCP Persistent Disk PD04
+    templateName: artem_simulation_gcp_persistent_disk
+    revision: v.1.1.1
+    workspace: wf00-gcp-persistent-disk
+    requiresApproval: false
+    needs:
+      - wf01-virtual-machine-01
+      
+  wf00-persistent-disk-05:
+    name: WF-00 GCP Persistent Disk PD05
+    templateName: artem_simulation_gcp_persistent_disk
+    revision: v.1.1.1
+    workspace: wf00-gcp-persistent-disk
+    requiresApproval: false
+    needs:
+      - wf01-virtual-machine-02
 
   wf00-gke:
     name: WF-00 GCP GKE
