@@ -1,6 +1,8 @@
 locals {
-  effective_cluster_name = var.gke_cluster_name != "" ? var.gke_cluster_name : "${var.project_id}-gke"
-  create_count           = var.enable_gke ? 1 : 0
+  effective_cluster_name = var.gke_cluster_name != "" ? var.gke_cluster_name : (
+    var.gke_name_suffix != "" ? "${var.project_id}-gke-${var.gke_name_suffix}" : "${var.project_id}-gke"
+  )
+  create_count = var.enable_gke ? 1 : 0
 }
 
 resource "google_container_cluster" "cluster" {
@@ -11,18 +13,15 @@ resource "google_container_cluster" "cluster" {
   network    = var.network_self_link
   subnetwork = var.subnet_self_link
 
-  # Use a separate node pool resource
   remove_default_node_pool = true
   initial_node_count       = 1
 
-  # Let GKE allocate secondary ranges automatically (VPC-native)
   ip_allocation_policy {}
 
   release_channel {
     channel = var.gke_release_channel
   }
 
-  # Reasonable defaults for a demo
   logging_service    = "logging.googleapis.com/kubernetes"
   monitoring_service = "monitoring.googleapis.com/kubernetes"
 }
@@ -39,7 +38,6 @@ resource "google_container_node_pool" "primary" {
     machine_type = var.gke_machine_type
     disk_size_gb = var.gke_disk_size_gb
 
-    # Keep nodes with minimal broad scope. Adjust later if workloads need more.
     oauth_scopes = [
       "https://www.googleapis.com/auth/cloud-platform"
     ]
