@@ -84,7 +84,7 @@ environments:
     workspace: wf00-gcp-persistent-disk
     requiresApproval: false
     needs:
-      - wf01-virtual-machine-01
+      - wf00-virtual-machine-01
       
   wf00-persistent-disk-03:
     name: WF-00 GCP Persistent Disk PD03
@@ -93,7 +93,7 @@ environments:
     workspace: wf00-gcp-persistent-disk
     requiresApproval: false
     needs:
-      - wf01-virtual-machine-01
+      - wf00-virtual-machine-01
 
 # Artem Simulation Build - GPF Virtual Machine 02 w/ PersistentDisks
 
@@ -113,7 +113,7 @@ environments:
     workspace: wf00-gcp-persistent-disk
     requiresApproval: false
     needs:
-      - wf01-virtual-machine-01
+      - wf00-virtual-machine-01
       
   wf00-persistent-disk-05:
     name: WF-00 GCP Persistent Disk PD05
@@ -122,7 +122,7 @@ environments:
     workspace: wf00-gcp-persistent-disk
     requiresApproval: false
     needs:
-      - wf01-virtual-machine-02
+      - wf00-virtual-machine-02
 
   wf00-gke:
     name: WF-00 GCP GKE
