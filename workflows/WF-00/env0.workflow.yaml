@@ -129,7 +129,7 @@ environments:
 
   wf00-gke-00:
     name: WF-00 GCP GKE Cluster 00
-    templateName: artem_simulation_gcp_gke_00
+    templateName: artem_simulation_gcp_gke
     revision: v.1.1.1
     workspace: wf00-gcp-gke-00
     requiresApproval: false
@@ -140,7 +140,7 @@ environments:
 
   wf00-gke-01:
     name: WF-00 GCP GKE Cluster 01
-    templateName: artem_simulation_gcp_gke_01
+    templateName: artem_simulation_gcp_gke
     revision: v.1.1.1
     workspace: wf00-gcp-gke-01
     requiresApproval: false
@@ -152,7 +152,7 @@ environments:
 
   wf00-gke-02:
     name: WF-00 GCP GKE Cluster 02
-    templateName: artem_simulation_gcp_gke_02
+    templateName: artem_simulation_gcp_gke
     revision: v.1.1.1
     workspace: wf00-gcp-gke-02
     requiresApproval: false
