@@ -59,3 +59,9 @@ variable "subnet_self_link" {
   description = "Subnet self link from the Network component."
   type        = string
 }
+
+variable "gke_name_suffix" {
+  description = "Optional unique suffix for this GKE environment, for example 00, 01, or 02."
+  type        = string
+  default     = ""
+}
