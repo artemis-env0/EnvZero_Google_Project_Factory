@@ -25,6 +25,8 @@ resource "google_container_cluster" "cluster" {
   # Reasonable defaults for a demo
   logging_service    = "logging.googleapis.com/kubernetes"
   monitoring_service = "monitoring.googleapis.com/kubernetes"
+
+  deletion_protection = false
 }
 
 resource "google_container_node_pool" "primary" {
