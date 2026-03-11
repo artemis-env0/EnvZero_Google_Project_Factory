@@ -2,6 +2,7 @@ locals {
   effective_cluster_name = var.gke_cluster_name != "" ? var.gke_cluster_name : (
     var.gke_name_suffix != "" ? "${var.project_id}-gke-${var.gke_name_suffix}" : "${var.project_id}-gke"
   )
+
   create_count = var.enable_gke ? 1 : 0
 }
 
