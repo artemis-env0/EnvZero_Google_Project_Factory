@@ -4,7 +4,7 @@
 
 ---
 
-Deploy using OpenTofu + Google Project Factory (GPF) + env0
+Deploy using OpenTofu with Google Project Factory (GPF) + env0
 ----
 ## EnvZero Demo Package
 
