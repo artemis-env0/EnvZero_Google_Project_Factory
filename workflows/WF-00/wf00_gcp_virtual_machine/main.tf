@@ -1,10 +1,16 @@
 locals {
   effective_count = var.enable_vms ? var.vm_count : 0
+
+  vm_name_base = var.vm_name_suffix != "" ? "${var.project_id}-vm-${var.vm_name_suffix}" : "${var.project_id}-vm"
 }
 
 resource "google_compute_instance" "vm" {
-  count        = local.effective_count
-  name         = var.vm_name_suffix != "" ? "${var.project_id}-vm-${var.vm_name_suffix}" : "${var.project_id}-vm-${count.index + 1}"
+  count = local.effective_count
+
+  name = var.vm_name_suffix != "" ? (
+    var.vm_count == 1 ? local.vm_name_base : "${local.vm_name_base}-${count.index + 1}"
+  ) : "${local.vm_name_base}-${count.index + 1}"
+
   machine_type = var.vm_machine_type
   zone         = var.vm_zone
   tags         = var.vm_tags
