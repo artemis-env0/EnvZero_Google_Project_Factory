@@ -1,7 +1,7 @@
 locals {
-  effective_cluster_name = var.gke_cluster_name != "" ? var.gke_cluster_name : (
-    var.gke_name_suffix != "" ? "${var.project_id}-gke-${var.gke_name_suffix}" : "${var.project_id}-gke"
-  )
+  base_cluster_name = var.gke_cluster_name != "" ? var.gke_cluster_name : "${var.project_id}-gke"
+
+  effective_cluster_name = var.gke_name_suffix != "" ? "${local.base_cluster_name}-${var.gke_name_suffix}" : local.base_cluster_name
 
   create_count = var.enable_gke ? 1 : 0
 }
@@ -25,8 +25,6 @@ resource "google_container_cluster" "cluster" {
 
   logging_service    = "logging.googleapis.com/kubernetes"
   monitoring_service = "monitoring.googleapis.com/kubernetes"
-
-  deletion_protection = false
 }
 
 resource "google_container_node_pool" "primary" {
