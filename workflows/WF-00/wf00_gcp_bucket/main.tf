@@ -2,8 +2,9 @@ locals {
   raw_bucket_name_prefix = var.bucket_name_prefix != "" ? var.bucket_name_prefix : "${var.project_id}-bkt"
   raw_bucket_name_suffix = var.bucket_name_suffix != "" ? var.bucket_name_suffix : "large"
 
-  sanitized_bucket_name_prefix = regexreplace(lower(local.raw_bucket_name_prefix), "[^a-z0-9-]", "-")
-  sanitized_bucket_name_suffix = regexreplace(lower(local.raw_bucket_name_suffix), "[^a-z0-9-]", "-")
+  # replace() with /pattern/ syntax is regex-aware and version-agnostic
+  sanitized_bucket_name_prefix = replace(lower(local.raw_bucket_name_prefix), "/[^a-z0-9-]/", "-")
+  sanitized_bucket_name_suffix = replace(lower(local.raw_bucket_name_suffix), "/[^a-z0-9-]/", "-")
 
   bucket_name_prefix_limited = substr(
     local.sanitized_bucket_name_prefix,
