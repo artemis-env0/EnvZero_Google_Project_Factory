@@ -12,11 +12,12 @@ locals {
 resource "google_compute_instance" "vm" {
   count = local.effective_count
 
-  name = var.vm_count == 1 ? local.vm_name_base : "${local.vm_name_base}-${count.index + 1}"
-
+  name         = var.vm_count == 1 ? local.vm_name_base : "${local.vm_name_base}-${count.index + 1}"
   machine_type = var.vm_machine_type
   zone         = var.vm_zone
   tags         = var.vm_tags
+
+  allow_stopping_for_update = true
 
   boot_disk {
     initialize_params {
