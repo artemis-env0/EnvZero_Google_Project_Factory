@@ -1,7 +1,13 @@
+resource "random_id" "name_suffix" {
+  byte_length = 4
+}
+
 locals {
   base_cluster_name = var.gke_cluster_name != "" ? var.gke_cluster_name : "${var.project_id}-gke"
 
-  effective_cluster_name = var.gke_name_suffix != "" ? "${local.base_cluster_name}-${var.gke_name_suffix}" : local.base_cluster_name
+  effective_cluster_name = var.gke_cluster_name != "" ? local.base_cluster_name : (
+    var.gke_name_suffix != "" ? "${local.base_cluster_name}-${var.gke_name_suffix}" : "${local.base_cluster_name}-${random_id.name_suffix.hex}"
+  )
 
   create_count = var.enable_gke ? 1 : 0
 }
