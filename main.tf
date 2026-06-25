@@ -1,10 +1,3 @@
-################################################################################
-# main.tf: Create NEW project via GPF or ADOPT existing,
-# then create a test bucket (and optional PD).
-# Uses local.effective_project_id everywhere so it works for both flows.
-################################################################################
-
-# Who am I? (for debugging)
 data "google_client_openid_userinfo" "me" {}
 
 output "whoami_email" {
@@ -12,26 +5,15 @@ output "whoami_email" {
   description = "Authenticated principal email from GOOGLE_CREDENTIALS."
 }
 
-################################################################################
-# Decide: create new vs adopt existing
-################################################################################
-
 locals {
   creating = var.existing_project_id == ""
 
-  # Parent (module expects null for the unused one)
   parent_org_id    = var.org_id    != "" ? var.org_id    : null
   parent_folder_id = var.folder_id != "" ? var.folder_id : null
 
-  # Null-safe sanitize of caller SA for IAM grant (avoid null interpolation)
   caller_sa_sanitized = var.caller_sa_email != null ? var.caller_sa_email : ""
 }
 
-################################################################################
-# Create (Project Factory) OR Adopt (data source)
-################################################################################
-
-# If creating, call the Project Factory module (it always creates/manages projects).
 module "project_factory" {
   count   = local.creating ? 1 : 0
   source  = "terraform-google-modules/project-factory/google"
@@ -40,7 +22,6 @@ module "project_factory" {
   org_id    = local.parent_org_id
   folder_id = local.parent_folder_id
 
-  # project_id is chosen in env0 pre-step to avoid collisions
   project_id        = var.project_id
   random_project_id = false
 
@@ -48,9 +29,9 @@ module "project_factory" {
   billing_account         = var.billing_account
   activate_apis           = var.activate_apis
   default_service_account = "deprivilege"
+  deletion_policy         = "DELETE"
 }
 
-# If adopting, look up the existing project and enable APIs ourselves.
 data "google_project" "adopted" {
   count      = local.creating ? 0 : 1
   project_id = var.existing_project_id
@@ -62,10 +43,6 @@ resource "google_project_service" "apis_existing" {
   service            = var.activate_apis[count.index]
   disable_on_destroy = true
 }
-
-################################################################################
-# Effective project reference (works for both paths)
-################################################################################
 
 locals {
   effective_project_id     = local.creating ? module.project_factory[0].project_id     : data.google_project.adopted[0].project_id
@@ -82,21 +59,14 @@ output "created_project_number" {
   description = "Number of the created/adopted project."
 }
 
-################################################################################
-# Optional: ensure env0 runner SA can manage the project
-################################################################################
-
-# NOTE: Renamed to avoid collision with iam_access.tf
 resource "google_project_iam_member" "grant_editor_to_caller_main" {
   count   = local.caller_sa_sanitized == "" ? 0 : 1
   project = local.effective_project_id
   role    = "roles/editor"
   member  = "serviceAccount:${local.caller_sa_sanitized}"
-}
 
-################################################################################
-# Test Resource A: One GCS bucket in the project
-################################################################################
+  depends_on = [module.project_factory]
+}
 
 resource "random_id" "suffix" {
   byte_length = 2
@@ -124,10 +94,6 @@ output "bucket_url" {
   value       = "gs://${google_storage_bucket.one_bucket.name}"
   description = "gs:// URL of the bucket."
 }
-
-################################################################################
-# Test Resource B (optional): Persistent Disk
-################################################################################
 
 resource "google_compute_disk" "test_pd" {
   count   = var.enable_persistent_disk ? 1 : 0
